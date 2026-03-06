@@ -158,35 +158,27 @@
             <!-- Date Range Picker -->
             <div class="col-12 col-md-4" style="align-self: flex-start;">
               <div class="text-subtitle2 q-mb-sm">Select Date Range</div>
-
               <div ref="calendarWrapRef" style="display: inline-block;">
                 <q-select
                   v-model="periodType"
                   :options="periodOptions"
-                  outlined
-                  dense
-                  emit-value
-                  map-options
+                  outlined dense emit-value map-options
                   :style="{ width: calendarWidth }"
                   class="q-mb-sm"
                   @update:model-value="onPeriodTypeChange"
                 >
                   <template v-slot:prepend><q-icon name="event" /></template>
                 </q-select>
-
                 <q-date
                   v-if="periodType === 'DAILY'"
                   v-model="dateRangeModel"
-                  range
-                  minimal
+                  range minimal
                   @update:model-value="onDateRangeChange"
                 />
                 <q-date
                   v-else-if="periodType === 'MONTHLY'"
                   v-model="monthRangeModel"
-                  range
-                  minimal
-                  emit-value
+                  range minimal emit-value
                   default-view="Months"
                   @update:model-value="onMonthRangeChange"
                 />
@@ -244,6 +236,7 @@
                   />
                 </div>
 
+                <!-- List View -->
                 <div v-if="viewMode === 'list'" style="max-height: 280px; overflow-y: auto;">
                   <q-list bordered separator dense>
                     <q-item v-for="data in energyData" :key="data.fullDate">
@@ -255,11 +248,20 @@
                   </q-list>
                 </div>
 
-                <div v-else style="height: 280px; overflow-y: auto;">
+                <!-- Chart View -->
+                <div v-else>
                   <div class="line-chart-container">
-                    <svg class="line-chart" viewBox="0 0 600 220" preserveAspectRatio="xMidYMid meet">
+                    <svg class="line-chart" viewBox="0 0 600 220" preserveAspectRatio="none">
                       <line v-for="i in 5" :key="'grid-' + i" :x1="50" :y1="i * 40" :x2="580" :y2="i * 40" stroke="#e0e0e0" stroke-width="1" />
-                      <text v-for="(data, index) in energyData" :key="'label-' + index" :x="getXPosition(index)" y="215" text-anchor="middle" font-size="10" fill="#666">{{ data.date }}</text>
+                      <text
+                        v-for="(data, index) in energyData"
+                        :key="'label-' + index"
+                        :x="getXPosition(index)"
+                        y="215"
+                        text-anchor="middle"
+                        font-size="10"
+                        fill="#666"
+                      >{{ index % labelInterval === 0 ? data.date : '' }}</text>
                       <text v-for="i in 6" :key="'ylabel-' + i" x="45" :y="200 - (i - 1) * 40 + 5" text-anchor="end" font-size="10" fill="#666">{{ ((maxEnergy / 5) * (i - 1)).toFixed(1) }}</text>
                       <polyline :points="linePoints" fill="none" stroke="#1976d2" stroke-width="2" stroke-linejoin="round" />
                       <polygon :points="areaPoints" fill="rgba(25, 118, 210, 0.1)" />
@@ -375,6 +377,23 @@ const onPeriodTypeChange = (type) => {
 
 const onDateRangeChange = (v) => {
   if (v?.from && v?.to) {
+    const from = new Date(v.from.replace(/\//g, '-'));
+    const to = new Date(v.to.replace(/\//g, '-'));
+    const diffDays = Math.round((to - from) / (1000 * 60 * 60 * 24)) + 1;
+
+    if (diffDays > 32) {
+      $q.notify({
+        type: 'warning',
+        message: `Selected range is ${diffDays} days. Please select up to 32 days to match your billing period.`,
+        icon: 'event_busy',
+        timeout: 3000
+      });
+      dateRangeModel.value = { from: getDefaultStartDate(true), to: getDefaultEndDate(true) };
+      dateRange.value.startDate = getDefaultStartDate();
+      dateRange.value.endDate = getDefaultEndDate();
+      return;
+    }
+
     dateRange.value.startDate = parseDisplayDate(v.from);
     dateRange.value.endDate = parseDisplayDate(v.to);
     fetchEnergyData();
@@ -390,16 +409,26 @@ const onMonthRangeChange = (v) => {
   }
 };
 
+const labelInterval = computed(() => {
+  const len = energyData.value.length;
+  if (len <= 10) return 1;
+  if (len <= 16) return 2;
+  if (len <= 24) return 3;
+  return 4;
+});
+
 const maxEnergy = computed(() => {
   if (!energyData.value.length) return 0;
   return Math.max(...energyData.value.map(d => d.energy)) / 1000;
 });
+
 const getXPosition = (i) => 50 + i * (530 / (energyData.value.length - 1 || 1));
 const getYPosition = (e) => maxEnergy.value === 0 ? 200 : 200 - (e / 1000 / maxEnergy.value) * 200;
+
 const linePoints = computed(() => energyData.value.map((d, i) => `${getXPosition(i)},${getYPosition(d.energy)}`).join(' '));
 const areaPoints = computed(() => {
   const pts = energyData.value.map((d, i) => `${getXPosition(i)},${getYPosition(d.energy)}`).join(' ');
-  return `${pts} ${getXPosition(energyData.value.length-1)},200 ${getXPosition(0)},200`;
+  return `${pts} ${getXPosition(energyData.value.length - 1)},200 ${getXPosition(0)},200`;
 });
 
 const energyStats = computed(() => {
@@ -409,10 +438,10 @@ const energyStats = computed(() => {
   const avg = active > 0 ? total / active : 0;
   const max = energyData.value.reduce((m, d) => d.energy > m.energy ? d : m, energyData.value[0]);
   return {
-    total: (total/1000).toFixed(2),
-    average: (avg/1000).toFixed(2),
+    total: (total / 1000).toFixed(2),
+    average: (avg / 1000).toFixed(2),
     daysActive: active,
-    maxDayKwh: (max.energy/1000).toFixed(2)
+    maxDayKwh: (max.energy / 1000).toFixed(2)
   };
 });
 
@@ -439,8 +468,10 @@ const fetchEnergyData = async () => {
     if (data.response?.result?.dataList) {
       energyData.value = data.response.result.dataList.map(item => {
         const d = item.usedDate;
-        const label = periodType.value === 'DAILY' ? `${d.substring(4,6)}/${d.substring(6,8)}` : `${d.substring(0,4)}/${d.substring(4,6)}`;
-        return { date: label, fullDate: d, energy: item.energyUsage, energyKwh: (item.energyUsage/1000).toFixed(2) };
+        const label = periodType.value === 'DAILY'
+          ? `${d.substring(4,6)}/${d.substring(6,8)}`
+          : `${d.substring(0,4)}/${d.substring(4,6)}`;
+        return { date: label, fullDate: d, energy: item.energyUsage, energyKwh: (item.energyUsage / 1000).toFixed(2) };
       });
       $q.notify({ type: 'positive', message: 'Energy data loaded successfully', icon: 'check_circle' });
     } else throw new Error('No energy data available');
@@ -489,7 +520,6 @@ onMounted(() => {
   width: 90vw;
   max-width: 480px;
 }
-
 .stat-card {
   border-left: 3px solid #1976d2;
   transition: all 0.2s ease;
@@ -499,7 +529,7 @@ onMounted(() => {
   transform: translateY(-2px);
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
-.line-chart-container { width: 100%; height: 100%; padding: 10px; }
-.line-chart { width: 100%; height: 100%; }
+.line-chart-container { width: 100%; padding: 10px 0; }
+.line-chart { display: block; width: 100%; height: 280px; }
 .line-chart circle:hover { r: 6; cursor: pointer; }
 </style>

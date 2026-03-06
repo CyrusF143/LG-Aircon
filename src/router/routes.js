@@ -13,7 +13,7 @@ const routes = [
         component: () => import('pages/SignInPage.vue')
       },
       {
-        path: 'device/:deviceId',
+        path: 'device',
         name: 'device-dashboard',
         component: () => import('pages/DeviceDashboard.vue')
       }

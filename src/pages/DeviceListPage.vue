@@ -104,9 +104,11 @@
 import { ref, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
 import { useRouter } from 'vue-router';
+import { useDeviceStore } from 'src/stores/deviceStore';
 
 const $q = useQuasar();
 const router = useRouter();
+const deviceStore = useDeviceStore();
 
 const devices = ref([]);
 const loading = ref(false);
@@ -183,14 +185,12 @@ const formatDeviceType = (deviceType) => {
 };
 
 const selectDevice = (device) => {
-  router.push({
-    name: 'device-dashboard',
-    params: { deviceId: device.deviceId },
-    query: {
-      name: device.deviceInfo.alias,
-      type: formatDeviceType(device.deviceInfo.deviceType)
-    }
+  deviceStore.setDevice({
+    deviceId: device.deviceId,
+    name: device.deviceInfo.alias || 'Unnamed Device',
+    type: formatDeviceType(device.deviceInfo.deviceType)
   });
+  router.push({ name: 'device-dashboard' });
 };
 
 const changeToken = () => {

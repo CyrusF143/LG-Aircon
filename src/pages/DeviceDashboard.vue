@@ -324,16 +324,17 @@
 
 <script setup>
 import { ref, computed, onMounted, nextTick } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
+import { useDeviceStore } from 'src/stores/deviceStore';
 
-const route = useRoute();
 const router = useRouter();
 const $q = useQuasar();
+const deviceStore = useDeviceStore();
 
-const deviceId = ref(route.params.deviceId || '');
-const deviceName = ref(route.query.name || 'Device');
-const deviceType = ref(route.query.type || 'Unknown');
+const deviceId = ref(deviceStore.selectedDevice?.deviceId || '');
+const deviceName = ref(deviceStore.selectedDevice?.name || 'Device');
+const deviceType = ref(deviceStore.selectedDevice?.type || 'Unknown');
 
 const baseUrl = 'https://api-kic.lgthinq.com';
 const patToken = ref(localStorage.getItem('patToken') || '');
@@ -587,10 +588,9 @@ const saveAsImage = async () => {
 onMounted(() => {
   if (!patToken.value) {
     $q.notify({ type: 'negative', message: 'No authentication token found. Please login again.', icon: 'error' });
-    router.push('/'); return;
+    router.push('/signin'); return;
   }
-  if (!deviceId.value) {
-    $q.notify({ type: 'negative', message: 'No device selected', icon: 'error' });
+  if (!deviceStore.selectedDevice) {
     router.push('/'); return;
   }
   refreshAll();

@@ -120,8 +120,9 @@ const generateMessageId = () => Math.random().toString(36).substring(2, 24);
 
 onMounted(() => {
   const token = localStorage.getItem('patToken');
-  if (!token) {
-    router.replace('/setup');
+  const user = localStorage.getItem('appUser');
+  if (!token || !user) {
+    router.replace('/signin');
   } else {
     fetchDevices();
   }
@@ -195,7 +196,8 @@ const selectDevice = (device) => {
 const changeToken = () => {
   localStorage.removeItem('patToken');
   localStorage.removeItem('country');
-  router.push('/setup');
+  localStorage.removeItem('appUser');
+  router.push('/signin');
 };
 </script>
 

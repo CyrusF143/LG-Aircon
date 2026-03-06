@@ -8,9 +8,9 @@ const routes = [
         component: () => import('pages/DeviceListPage.vue')
       },
       {
-        path: 'setup',
-        name: 'pat-token',
-        component: () => import('pages/PATTokenPage.vue')
+        path: 'signin',
+        name: 'sign-in',
+        component: () => import('pages/SignInPage.vue')
       },
       {
         path: 'device/:deviceId',

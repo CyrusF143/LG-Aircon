@@ -2,7 +2,7 @@
   <q-page class="q-pa-md">
     <div class="q-gutter-md">
       <!-- Header with Back Button -->
-      <q-card class="bg-primary text-white">
+      <!-- <q-card class="bg-primary text-white">
         <q-toolbar>
           <q-btn flat round dense icon="arrow_back" @click="goBack" />
           <q-toolbar-title>
@@ -21,6 +21,60 @@
             <q-tooltip>Refresh All Data</q-tooltip>
           </q-btn>
         </q-toolbar>
+      </q-card> -->
+
+
+      <q-card class="bg-primary text-white">
+        <q-card-section>
+          <div class="row items-center">
+            <q-btn
+              flat
+              dense
+              round
+              icon="arrow_back"
+              @click="goBack"
+              class="q-mr-md"
+            />
+            <div>
+              <div class="text-h5">
+                <q-icon name="devices" size="sm" class="q-mr-sm" />
+                {{ deviceName }}
+              </div>
+              <div class="text-subtitle2">{{ deviceType }}</div>
+            </div>
+            <q-space />
+
+            <!-- NEW: AI Insights Button -->
+            <q-btn
+              flat
+              round
+              icon="psychology"
+              @click="goToAIInsights"
+              class="pulse-button"
+            >
+              <q-tooltip>AI-Powered Insights</q-tooltip>
+              <q-badge color="purple" floating>AI</q-badge>
+            </q-btn>
+
+            <q-btn
+              flat
+              round
+              icon="attach_money"
+              @click="showBillCalculator = true"
+            >
+              <q-tooltip>Calculate Electricity Bill</q-tooltip>
+            </q-btn>
+            <q-btn
+              flat
+              round
+              icon="refresh"
+              @click="refreshAll"
+              :loading="loading"
+            >
+              <q-tooltip>Refresh All Data</q-tooltip>
+            </q-btn>
+          </div>
+        </q-card-section>
       </q-card>
 
       <!-- Electricity Bill Calculator Modal -->
@@ -333,6 +387,7 @@ const deviceStore = useDeviceStore();
 
 const deviceId = ref(deviceStore.selectedDevice?.deviceId || '');
 const deviceName = ref(deviceStore.selectedDevice?.name || 'Device');
+const deviceType = ref(deviceStore.selectedDevice?.type || 'Unknown');
 
 const baseUrl = 'https://api-kic.lgthinq.com';
 const patToken = ref(localStorage.getItem('patToken') || '');
@@ -595,6 +650,19 @@ onMounted(() => {
   fetchEnergyData();
   measureCalendarWidth();
 });
+
+
+// Navigation to AI Insights
+const goToAIInsights = () => {
+  router.push({
+    name: 'ai-insights',
+    params: { deviceId: deviceId.value },
+    query: {
+      name: deviceName.value,
+      type: deviceType.value
+    }
+  });
+};
 </script>
 
 <style scoped>
@@ -614,4 +682,18 @@ onMounted(() => {
 .line-chart-container { width: 100%; padding: 10px 0; }
 .line-chart { display: block; width: 100%; height: 280px; }
 .line-chart circle:hover { r: 6; cursor: pointer; }
+
+
+@keyframes pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(156, 39, 176, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(156, 39, 176, 0);
+  }
+}
+
+.pulse-button {
+  animation: pulse 2s infinite;
+}
 </style>

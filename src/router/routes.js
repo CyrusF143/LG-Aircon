@@ -15,7 +15,14 @@ const routes = [
       {
         path: 'device',
         name: 'device-dashboard',
-        component: () => import('pages/DeviceDashboard.vue')
+        component: () => import('pages/DeviceDashboard.vue'),
+        props: true
+      },
+      {
+        path: 'device/:deviceId/ai-insights',
+        name: 'ai-insights',
+        component: () => import('pages/AIRecommendationsPage.vue'),
+        props: true
       }
     ]
   },

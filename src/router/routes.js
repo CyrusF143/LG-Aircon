@@ -8,6 +8,11 @@ const routes = [
         component: () => import('pages/DeviceListPage.vue')
       },
       {
+        path: 'setup',
+        name: 'pat-token',
+        component: () => import('pages/PATTokenPage.vue')
+      },
+      {
         path: 'device/:deviceId',
         name: 'device-dashboard',
         component: () => import('pages/DeviceDashboard.vue')

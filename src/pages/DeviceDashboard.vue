@@ -469,6 +469,8 @@ const onPeriodTypeChange = (type) => {
     const [y, m] = monthRangeModel.value.from.split('/');
     dateRange.value = { startDate: `${y}${m}`, endDate: `${y}${m}` };
   }
+  // Save to store
+  deviceStore.setDateRange(dateRange.value, type);
   fetchEnergyData();
   measureCalendarWidth();
 };
@@ -494,6 +496,8 @@ const onDateRangeChange = (v) => {
 
     dateRange.value.startDate = parseDisplayDate(v.from);
     dateRange.value.endDate = parseDisplayDate(v.to);
+    // Save to store
+    deviceStore.setDateRange(dateRange.value, periodType.value);
     fetchEnergyData();
   }
 };
@@ -503,6 +507,8 @@ const onMonthRangeChange = (v) => {
     const [yf, mf] = v.from.split('/');
     const [yt, mt] = v.to.split('/');
     dateRange.value = { startDate: `${yf}${mf}`, endDate: `${yt}${mt}` };
+    // Save to store
+    deviceStore.setDateRange(dateRange.value, periodType.value);
     fetchEnergyData();
   }
 };
@@ -654,6 +660,8 @@ onMounted(() => {
 
 // Navigation to AI Insights
 const goToAIInsights = () => {
+  // Save current date range before navigating
+  deviceStore.setDateRange(dateRange.value, periodType.value);
   router.push({
     name: 'ai-insights',
     params: { deviceId: deviceId.value },

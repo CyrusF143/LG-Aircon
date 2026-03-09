@@ -109,6 +109,36 @@
               </template>
             </q-select>
 
+            <!-- Location Setting -->
+            <q-input
+              v-model="locationInput"
+              label="Weather Location"
+              outlined
+              hint="City used to fetch outdoor temperature for AI analysis"
+              class="q-mb-md"
+            >
+              <template v-slot:prepend>
+                <q-icon name="location_on" />
+              </template>
+              <template v-slot:append>
+                <q-btn
+                  flat dense round icon="thermostat" size="sm"
+                  @click.stop="fetchWeatherData"
+                  :loading="loadingWeather"
+                >
+                  <q-tooltip>Test location & fetch weather</q-tooltip>
+                </q-btn>
+              </template>
+            </q-input>
+
+            <!-- Weather Preview -->
+            <q-banner v-if="currentWeather" dense class="bg-blue-1 text-blue-9 q-mb-md" rounded>
+              <template v-slot:avatar>
+                <q-icon name="wb_sunny" color="orange" />
+              </template>
+              {{ currentWeather.location }}: {{ currentWeather.temperature }}°C, {{ currentWeather.humidity }}% humidity — {{ currentWeather.description }}
+            </q-banner>
+
             <!-- Custom Prompt Input -->
             <div class="q-mb-md">
               <div class="text-subtitle2 q-mb-sm">AI Prompt Template</div>
@@ -117,7 +147,7 @@
                 type="textarea"
                 outlined
                 rows="8"
-                hint="Customize how the AI analyzes your data. Variables: {deviceName}, {powerStatus}, {targetTemp}, {mode}, {fanSpeed}, {monthlyKwh}, {avgKwh}, {peakKwh}, {ratePerKwh}"
+                hint="Variables: {deviceName}, {powerStatus}, {runState}, {acJobMode}, {fanSpeed}, {windStrengthDetail}, {currentRoomTemp}, {targetTemp}, {windDirectionUpDown}, {monthlyKwh}, {avgKwh}, {peakKwh}, {ratePerKwh}, {location}, {outdoorTemp}, {humidity}, {weatherDesc}"
                 class="prompt-input"
               >
                 <template v-slot:prepend>
@@ -224,7 +254,12 @@
       <!-- Quick Stats Summary -->
       <q-card v-if="energyStats" flat bordered>
         <q-card-section>
-          <div class="text-subtitle2 text-grey-7 q-mb-md">Current Period Summary</div>
+          <div class="row items-center justify-between q-mb-sm">
+            <div class="text-subtitle2 text-grey-7">Analysis Period</div>
+            <q-chip color="primary" text-color="white" icon="event" size="md">
+              {{ formatAnalysisPeriod() }}
+            </q-chip>
+          </div>
           <div class="row q-col-gutter-sm">
             <div class="col-6 col-sm-3">
               <div class="text-center">
@@ -250,6 +285,29 @@
                 <div class="text-caption text-grey-7">Peak Day</div>
               </div>
             </div>
+          </div>
+
+          <!-- Weather Row -->
+          <q-separator class="q-my-sm" />
+          <div v-if="currentWeather" class="row items-center q-gutter-sm q-pt-xs">
+            <q-icon name="wb_sunny" color="orange" size="sm" />
+            <span class="text-caption text-grey-8 text-weight-medium">{{ currentWeather.location }}</span>
+            <q-chip dense color="orange-1" text-color="orange-9" size="sm" icon="thermostat">
+              {{ currentWeather.temperature }}°C
+            </q-chip>
+            <q-chip dense color="blue-1" text-color="blue-9" size="sm" icon="water_drop">
+              {{ currentWeather.humidity }}% humidity
+            </q-chip>
+            <q-chip dense color="grey-2" text-color="grey-8" size="sm">
+              {{ currentWeather.description }}
+            </q-chip>
+          </div>
+          <div v-else-if="loadingWeather" class="row items-center q-gutter-xs q-pt-xs">
+            <q-spinner-dots color="grey-5" size="sm" />
+            <span class="text-caption text-grey-5">Fetching weather...</span>
+          </div>
+          <div v-else class="text-caption text-grey-5 q-pt-xs">
+            <q-icon name="cloud_off" size="xs" class="q-mr-xs" />Weather unavailable — check location in Settings
           </div>
         </q-card-section>
       </q-card>
@@ -494,10 +552,12 @@
 import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
+import { useDeviceStore } from 'src/stores/deviceStore';
 
 const route = useRoute();
 const router = useRouter();
 const $q = useQuasar();
+const deviceStore = useDeviceStore();
 
 // Device info from route
 const deviceId = ref(route.params.deviceId || '');
@@ -518,10 +578,11 @@ const activeAlerts = ref([]);
 const energyStats = ref(null);
 const deviceStatus = ref(null);
 const energyData = ref([]);
+const periodType = ref('DAILY');
 
 // API Key Management
 const showApiKeyDialog = ref(false);
-const defaultApiKey = 'AIzaSyCPuhfjAfHYHKSapRXAipvTpsqFcImJHjI';
+const defaultApiKey = 'AIzaSyAHgGtvmekjxnD64ZWAriUfOm_Oxo3KmB0';
 const apiKeyInput = ref(localStorage.getItem('geminiApiKey') || defaultApiKey);
 const hasApiKey = ref(true); // Always true since we have a default
 const selectedModel = ref(localStorage.getItem('geminiModel') || 'gemini-flash-latest');
@@ -529,11 +590,14 @@ const selectedModel = ref(localStorage.getItem('geminiModel') || 'gemini-flash-l
 const defaultPrompt = `Analyze this AC usage and return recommendations as JSON.
 
 Device: {deviceName}
-Status: {powerStatus} at {targetTemp}°C
-Mode: {mode}, Fan: {fanSpeed}
-Usage: {monthlyKwh} kWh this month ({avgKwh} kWh/day avg)
-Peak: {peakKwh} kWh
+Power: {powerStatus} | Run State: {runState}
+Mode: {acJobMode} | Fan: {fanSpeed} ({windStrengthDetail})
+Room Temp: {currentRoomTemp}°C → Target: {targetTemp}°C
+Wind Direction (Up-Down Swing): {windDirectionUpDown}
+Usage: {monthlyKwh} kWh ({avgKwh} kWh/day avg), Peak: {peakKwh} kWh
 Rate: ₱{ratePerKwh}/kWh (Philippines)
+Location: {location}
+Outside: {outdoorTemp}°C, {humidity}% humidity, {weatherDesc}
 
 Return ONLY valid JSON (no markdown, no backticks):
 {
@@ -544,7 +608,7 @@ Return ONLY valid JSON (no markdown, no backticks):
   "efficiencyTips": [{"tip": "Brief tip", "category": "temperature"}]
 }
 
-Keep each string concise (under 100 chars). Focus on Philippine tropical climate and ₱10-15/kWh rates.`;
+Keep each string concise (under 100 chars). Factor in outdoor vs room temp difference, run state, fan mode, and humidity. Focus on Philippine tropical climate and ₱10-15/kWh rates.`;
 
 const customPrompt = ref(localStorage.getItem('geminiPrompt') || defaultPrompt);
 const availableModels = ref([
@@ -560,6 +624,73 @@ const availableModels = ref([
   }
 ]);
 const loadingModels = ref(false);
+
+// Location & Weather
+const defaultLocation = 'Tarlac City, Tarlac';
+const locationInput = ref(localStorage.getItem('weatherLocation') || defaultLocation);
+const currentWeather = ref(null);
+const loadingWeather = ref(false);
+
+const weatherCodeToDesc = (code) => {
+  if (code === 0) return 'Clear sky';
+  if (code <= 3) return 'Partly cloudy';
+  if (code <= 48) return 'Foggy';
+  if (code <= 55) return 'Drizzle';
+  if (code <= 67) return 'Rainy';
+  if (code <= 82) return 'Rain showers';
+  if (code <= 99) return 'Thunderstorm';
+  return 'Unknown';
+};
+
+const fetchWeatherData = async () => {
+  loadingWeather.value = true;
+  try {
+    const location = locationInput.value || defaultLocation;
+
+    // Open-Meteo geocoding works best with just the city name (no province).
+    // Try full string first, then fall back to the part before the first comma.
+    const searchTerms = [location];
+    const cityOnly = location.split(',')[0].trim();
+    if (cityOnly !== location) searchTerms.push(cityOnly);
+
+    let place = null;
+    for (const term of searchTerms) {
+      const geoRes = await fetch(
+        `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(term)}&count=5&language=en`
+      );
+      const geoData = await geoRes.json();
+      // Prefer a result from the Philippines (country_code PH)
+      place = geoData.results?.find(r => r.country_code === 'PH') || geoData.results?.[0];
+      if (place) break;
+    }
+
+    if (!place) {
+      throw new Error(`Location "${location}" not found`);
+    }
+
+    const weatherRes = await fetch(
+      `https://api.open-meteo.com/v1/forecast?latitude=${place.latitude}&longitude=${place.longitude}&current=temperature_2m,relative_humidity_2m,weather_code`
+    );
+    const weatherData = await weatherRes.json();
+    const cur = weatherData.current;
+    currentWeather.value = {
+      location: place.name,
+      temperature: cur.temperature_2m,
+      humidity: cur.relative_humidity_2m,
+      description: weatherCodeToDesc(cur.weather_code)
+    };
+  } catch (error) {
+    console.error('Weather fetch error:', error);
+    currentWeather.value = null;
+    $q.notify({
+      type: 'warning',
+      message: 'Could not fetch weather data',
+      caption: error.message
+    });
+  } finally {
+    loadingWeather.value = false;
+  }
+};
 
 // Generate random message ID
 const generateMessageId = () => {
@@ -585,14 +716,28 @@ const fetchDeviceData = async () => {
       deviceStatus.value = statusData.response;
     }
 
-    // Fetch energy data (current month)
-    const today = new Date();
-    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-    const startDate = formatDateForAPI(firstDay);
-    const endDate = formatDateForAPI(today);
+    // Get date range from deviceStore (passed from DeviceDashboard)
+    const savedDateRange = deviceStore.selectedDateRange;
+    const savedPeriodType = deviceStore.selectedPeriodType || 'DAILY';
+
+    let startDate, endDate;
+
+    if (savedDateRange?.startDate && savedDateRange?.endDate) {
+      // Use the date range from the dashboard
+      startDate = savedDateRange.startDate;
+      endDate = savedDateRange.endDate;
+      periodType.value = savedPeriodType;
+    } else {
+      // Fallback to current month
+      const today = new Date();
+      const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+      startDate = formatDateForAPI(firstDay);
+      endDate = formatDateForAPI(today);
+      periodType.value = 'DAILY';
+    }
 
     const energyResponse = await fetch(
-      `${baseUrl}/devices/energy/${deviceId.value}/usage?period=DAILY&startDate=${startDate}&endDate=${endDate}`,
+      `${baseUrl}/devices/energy/${deviceId.value}/usage?period=${periodType.value}&startDate=${startDate}&endDate=${endDate}`,
       {
         method: 'GET',
         headers: {
@@ -617,6 +762,26 @@ const fetchDeviceData = async () => {
       message: 'Could not load all device data',
       caption: 'Some features may be limited'
     });
+  }
+};
+
+// Format analysis period for display
+const formatAnalysisPeriod = () => {
+  const savedDateRange = deviceStore.selectedDateRange;
+  const savedPeriodType = deviceStore.selectedPeriodType || 'DAILY';
+
+  if (!savedDateRange) {
+    return 'Current Month';
+  }
+
+  if (savedPeriodType === 'DAILY') {
+    const start = savedDateRange.startDate;
+    const end = savedDateRange.endDate;
+    return `${start.substring(4,6)}/${start.substring(6,8)} - ${end.substring(4,6)}/${end.substring(6,8)}`;
+  } else {
+    const start = savedDateRange.startDate;
+    const end = savedDateRange.endDate;
+    return `${start.substring(0,4)}/${start.substring(4,6)} - ${end.substring(0,4)}/${end.substring(4,6)}`;
   }
 };
 
@@ -708,10 +873,14 @@ const getAIRecommendations = async () => {
       deviceName: deviceName.value,
       deviceType: deviceType.value,
       currentStatus: {
-        temperature: deviceStatus.value?.temperature || {},
-        mode: deviceStatus.value?.airConJobMode?.currentJobMode || 'Unknown',
+        powerStatus: deviceStatus.value?.operation?.airConOperationMode || 'Unknown',
+        runState: deviceStatus.value?.runState?.currentState || 'Unknown',
+        acJobMode: deviceStatus.value?.airConJobMode?.currentJobMode || 'Unknown',
         fanSpeed: deviceStatus.value?.airFlow?.windStrength || 'Unknown',
-        powerStatus: deviceStatus.value?.operation?.airConOperationMode || 'Unknown'
+        windStrengthDetail: deviceStatus.value?.airFlow?.windStrengthDetail || 'Unknown',
+        currentRoomTemp: deviceStatus.value?.temperature?.currentTemperature ?? 'N/A',
+        targetTemp: deviceStatus.value?.temperature?.targetTemperature ?? 'N/A',
+        windDirectionUpDown: deviceStatus.value?.windDirection?.rotateUpDown ? 'Swing ON' : 'Swing OFF'
       },
       energyData: {
         thisMonth: energyStats.value?.total || 0,
@@ -731,13 +900,21 @@ const getAIRecommendations = async () => {
     let prompt = customPrompt.value
       .replace('{deviceName}', deviceData.deviceName)
       .replace('{powerStatus}', deviceData.currentStatus.powerStatus)
-      .replace('{targetTemp}', deviceData.currentStatus.temperature.targetTemperature || 'N/A')
-      .replace('{mode}', deviceData.currentStatus.mode)
+      .replace('{runState}', deviceData.currentStatus.runState)
+      .replace('{acJobMode}', deviceData.currentStatus.acJobMode)
       .replace('{fanSpeed}', deviceData.currentStatus.fanSpeed)
+      .replace('{windStrengthDetail}', deviceData.currentStatus.windStrengthDetail)
+      .replace('{currentRoomTemp}', deviceData.currentStatus.currentRoomTemp)
+      .replace('{targetTemp}', deviceData.currentStatus.targetTemp)
+      .replace('{windDirectionUpDown}', deviceData.currentStatus.windDirectionUpDown)
       .replace('{monthlyKwh}', deviceData.energyData.thisMonth)
       .replace('{avgKwh}', deviceData.energyData.average)
       .replace('{peakKwh}', deviceData.energyData.peakDay)
-      .replace('{ratePerKwh}', deviceData.costs.ratePerKwh);
+      .replace('{ratePerKwh}', deviceData.costs.ratePerKwh)
+      .replace('{location}', currentWeather.value?.location || locationInput.value)
+      .replace('{outdoorTemp}', currentWeather.value?.temperature ?? 'N/A')
+      .replace('{humidity}', currentWeather.value?.humidity ?? 'N/A')
+      .replace('{weatherDesc}', currentWeather.value?.description || 'N/A');
 
     // Call Google Gemini API with selected model
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${selectedModel.value}:generateContent`, {
@@ -786,7 +963,7 @@ const getAIRecommendations = async () => {
     cleanedResponse = cleanedResponse.replace(/```json\n?/g, '');
     cleanedResponse = cleanedResponse.replace(/```\n?/g, '');
     cleanedResponse = cleanedResponse.trim();
-    
+
     // Try to parse as JSON directly first
     try {
       recommendations.value = JSON.parse(cleanedResponse);
@@ -980,7 +1157,7 @@ const shareRecommendations = () => {
 
 // Go back
 const goBack = () => {
-  router.push(`/device/${deviceId.value}`);
+  router.push('/device');
 };
 
 // API Key Management
@@ -988,6 +1165,7 @@ const saveApiKey = () => {
   localStorage.setItem('geminiApiKey', apiKeyInput.value);
   localStorage.setItem('geminiModel', selectedModel.value);
   localStorage.setItem('geminiPrompt', customPrompt.value);
+  localStorage.setItem('weatherLocation', locationInput.value);
   hasApiKey.value = true;
   showApiKeyDialog.value = false;
 
@@ -1000,14 +1178,16 @@ const saveApiKey = () => {
     icon: 'check_circle'
   });
 
-  // Fetch available models after saving key
+  // Fetch available models and weather after saving
   fetchAvailableModels();
+  fetchWeatherData();
 };
 
 const resetToDefaults = () => {
   apiKeyInput.value = defaultApiKey;
   customPrompt.value = defaultPrompt;
   selectedModel.value = 'gemini-flash-latest';
+  locationInput.value = defaultLocation;
 
   $q.notify({
     type: 'info',
@@ -1037,8 +1217,8 @@ onMounted(async () => {
     return;
   }
 
-  // Load device data
-  await fetchDeviceData();
+  // Load device data and weather in parallel
+  await Promise.all([fetchDeviceData(), fetchWeatherData()]);
 
   // Always fetch available models (we have default key)
   await fetchAvailableModels();

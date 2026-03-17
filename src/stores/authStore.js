@@ -22,17 +22,29 @@ export const useAuthStore = defineStore('auth', () => {
   const saveCredentials = async (patToken, country) => {
     const activeUser = user.value || await waitForAuth();
     if (!activeUser) return;
-    await set(dbRef(db, `users/${activeUser.uid}`), { patToken, country });
+    await set(dbRef(db, `users/${activeUser.uid}/credentials`), { patToken, country });
   };
 
   const loadCredentials = async () => {
-    // Wait for Firebase to restore session if Pinia was reset (page refresh)
     const activeUser = user.value || await waitForAuth();
     if (!activeUser) return null;
     if (!user.value) user.value = activeUser;
-    const snapshot = await get(dbRef(db, `users/${activeUser.uid}`));
+    const snapshot = await get(dbRef(db, `users/${activeUser.uid}/credentials`));
     return snapshot.exists() ? snapshot.val() : null;
   };
 
-  return { user, setUser, saveCredentials, loadCredentials };
+  const saveAISettings = async (settings) => {
+    const activeUser = user.value || await waitForAuth();
+    if (!activeUser) return;
+    await set(dbRef(db, `users/${activeUser.uid}/aiSettings`), settings);
+  };
+
+  const loadAISettings = async () => {
+    const activeUser = user.value || await waitForAuth();
+    if (!activeUser) return null;
+    const snapshot = await get(dbRef(db, `users/${activeUser.uid}/aiSettings`));
+    return snapshot.exists() ? snapshot.val() : null;
+  };
+
+  return { user, setUser, saveCredentials, loadCredentials, saveAISettings, loadAISettings };
 });

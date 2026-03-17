@@ -46,14 +46,19 @@
       </q-card>
 
       <!-- API Key Setup Dialog -->
-      <q-dialog v-model="showApiKeyDialog">
-        <q-card style="min-width: 400px">
+      <q-dialog v-model="showApiKeyDialog" :maximized="$q.screen.lt.sm" transition-show="slide-up" transition-hide="slide-down">
+        <q-card :style="$q.screen.lt.sm ? 'display:flex; flex-direction:column' : 'min-width: 400px; max-width: 560px; max-height: 90vh'">
           <q-card-section class="bg-purple text-white">
-            <div class="text-h6">
-              <q-icon name="key" class="q-mr-sm" />
-              Google Gemini API Settings
+            <div class="row items-center">
+              <div class="text-h6 col">
+                <q-icon name="key" class="q-mr-sm" />
+                Google Gemini API Settings
+              </div>
+              <q-btn v-if="$q.screen.lt.sm" flat round dense icon="close" color="white" v-close-popup />
             </div>
           </q-card-section>
+
+          <q-scroll-area :style="$q.screen.lt.sm ? 'height: calc(100vh - 120px)' : 'max-height: calc(90vh - 130px)'" :thumb-style="{ width: '4px' }">
 
           <q-card-section>
             <div class="text-body2 q-mb-md">
@@ -148,24 +153,12 @@
                 type="textarea"
                 outlined
                 rows="8"
-                hint="Variables: {deviceName}, {powerStatus}, {runState}, {acJobMode}, {fanSpeed}, {windStrengthDetail}, {currentRoomTemp}, {targetTemp}, {windDirectionUpDown}, {monthlyKwh}, {avgKwh}, {peakKwh}, {ratePerKwh}, {location}, {outdoorTemp}, {humidity}, {weatherDesc}"
                 class="prompt-input"
               >
                 <template v-slot:prepend>
                   <q-icon name="edit_note" />
                 </template>
               </q-input>
-              <div class="row q-gutter-sm q-mt-sm">
-                <q-btn
-                  flat
-                  dense
-                  size="sm"
-                  label="Reset to Default"
-                  icon="refresh"
-                  @click="resetPromptToDefault"
-                  color="primary"
-                />
-              </div>
             </div>
 
             <q-banner v-if="hasApiKey" dense class="bg-green-1 text-green-9" rounded>
@@ -178,14 +171,15 @@
               </div>
             </q-banner>
           </q-card-section>
+          </q-scroll-area>
 
-          <q-card-actions align="right">
-            <q-btn flat label="Cancel" v-close-popup />
+          <q-card-actions :vertical="$q.screen.lt.sm" :align="$q.screen.lt.sm ? 'stretch' : 'right'" class="q-pa-md" style="border-top: 1px solid #eee">
             <q-btn
               label="Save Settings"
               color="purple"
               unelevated
               @click="saveApiKey"
+              :class="$q.screen.lt.sm ? 'q-mb-xs' : ''"
             />
             <q-btn
               v-if="hasApiKey"
@@ -193,7 +187,9 @@
               color="grey"
               flat
               @click="resetToDefaults"
+              :class="$q.screen.lt.sm ? 'q-mb-xs' : ''"
             />
+            <q-btn flat label="Cancel" v-close-popup />
           </q-card-actions>
         </q-card>
       </q-dialog>
@@ -586,10 +582,9 @@ const periodType = ref('DAILY');
 
 // API Key Management
 const showApiKeyDialog = ref(false);
-const defaultApiKey = 'AIzaSyAHgGtvmekjxnD64ZWAriUfOm_Oxo3KmB0';
-const apiKeyInput = ref(localStorage.getItem('geminiApiKey') || defaultApiKey);
-const hasApiKey = ref(true); // Always true since we have a default
-const selectedModel = ref(localStorage.getItem('geminiModel') || 'gemini-flash-latest');
+const apiKeyInput = ref('');
+const hasApiKey = ref(false);
+const selectedModel = ref('gemini-flash-latest');
 
 const defaultPrompt = `Analyze this AC usage and return recommendations as JSON.
 
@@ -614,7 +609,7 @@ Return ONLY valid JSON (no markdown, no backticks):
 
 Keep each string concise (under 100 chars). Factor in outdoor vs room temp difference, run state, fan mode, and humidity. Focus on Philippine tropical climate and ₱10-15/kWh rates.`;
 
-const customPrompt = ref(localStorage.getItem('geminiPrompt') || defaultPrompt);
+const customPrompt = ref(defaultPrompt);
 const availableModels = ref([
   {
     label: 'Gemini Flash (Recommended)',
@@ -631,7 +626,7 @@ const loadingModels = ref(false);
 
 // Location & Weather
 const defaultLocation = 'Tarlac City, Tarlac';
-const locationInput = ref(localStorage.getItem('weatherLocation') || defaultLocation);
+const locationInput = ref(defaultLocation);
 const currentWeather = ref(null);
 const loadingWeather = ref(false);
 
@@ -818,7 +813,8 @@ const calculateEnergyStats = () => {
 
 // Fetch available models from Gemini API
 const fetchAvailableModels = async () => {
-  const geminiApiKey = apiKeyInput.value || defaultApiKey;
+  if (!apiKeyInput.value) return;
+  const geminiApiKey = apiKeyInput.value;
 
   loadingModels.value = true;
   try {
@@ -897,8 +893,11 @@ const getAIRecommendations = async () => {
       }
     };
 
-    // Get API key from localStorage or use default
-    const geminiApiKey = apiKeyInput.value || defaultApiKey;
+    // Get API key
+    const geminiApiKey = apiKeyInput.value;
+    if (!geminiApiKey) {
+      throw new Error('No Gemini API key set. Please configure it in Settings.');
+    }
 
     // Build prompt with variable replacements
     let prompt = customPrompt.value
@@ -1165,12 +1164,14 @@ const goBack = () => {
 };
 
 // API Key Management
-const saveApiKey = () => {
-  localStorage.setItem('geminiApiKey', apiKeyInput.value);
-  localStorage.setItem('geminiModel', selectedModel.value);
-  localStorage.setItem('geminiPrompt', customPrompt.value);
-  localStorage.setItem('weatherLocation', locationInput.value);
-  hasApiKey.value = true;
+const saveApiKey = async () => {
+  await authStore.saveAISettings({
+    apiKey: apiKeyInput.value,
+    model: selectedModel.value,
+    prompt: customPrompt.value,
+    location: locationInput.value
+  });
+  hasApiKey.value = !!apiKeyInput.value;
   showApiKeyDialog.value = false;
 
   const modelName = availableModels.value.find(m => m.value === selectedModel.value)?.label || 'Selected model';
@@ -1188,7 +1189,7 @@ const saveApiKey = () => {
 };
 
 const resetToDefaults = () => {
-  apiKeyInput.value = defaultApiKey;
+  apiKeyInput.value = '';
   customPrompt.value = defaultPrompt;
   selectedModel.value = 'gemini-flash-latest';
   locationInput.value = defaultLocation;
@@ -1200,18 +1201,14 @@ const resetToDefaults = () => {
   });
 };
 
-const resetPromptToDefault = () => {
-  customPrompt.value = defaultPrompt;
-  $q.notify({
-    type: 'info',
-    message: 'Prompt reset to default',
-    icon: 'refresh'
-  });
-};
 
 // Load on mount
 onMounted(async () => {
-  const credentials = await authStore.loadCredentials();
+  const [credentials, aiSettings] = await Promise.all([
+    authStore.loadCredentials(),
+    authStore.loadAISettings()
+  ]);
+
   if (!credentials || !deviceId.value) {
     $q.notify({
       type: 'negative',
@@ -1224,11 +1221,21 @@ onMounted(async () => {
   patToken.value = credentials.patToken;
   country.value = credentials.country;
 
+  if (aiSettings) {
+    if (aiSettings.apiKey) apiKeyInput.value = aiSettings.apiKey;
+    if (aiSettings.model) selectedModel.value = aiSettings.model;
+    if (aiSettings.prompt) customPrompt.value = aiSettings.prompt;
+    if (aiSettings.location) locationInput.value = aiSettings.location;
+    hasApiKey.value = !!aiSettings.apiKey;
+  }
+
   // Load device data and weather in parallel
   await Promise.all([fetchDeviceData(), fetchWeatherData()]);
 
-  // Always fetch available models (we have default key)
-  await fetchAvailableModels();
+  // Fetch available models if we have an API key
+  if (apiKeyInput.value) {
+    await fetchAvailableModels();
+  }
 
   // Load saved recommendations
   const savedRecs = localStorage.getItem(`recommendations_${deviceId.value}`);

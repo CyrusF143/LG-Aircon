@@ -381,19 +381,21 @@ import { ref, computed, onMounted, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { useDeviceStore } from 'src/stores/deviceStore';
+import { useAuthStore } from 'src/stores/authStore';
 import ProfileMenu from 'src/components/ProfileMenu.vue';
 
 const router = useRouter();
 const $q = useQuasar();
 const deviceStore = useDeviceStore();
+const authStore = useAuthStore();
 
 const deviceId = ref(deviceStore.selectedDevice?.deviceId || '');
 const deviceName = ref(deviceStore.selectedDevice?.name || 'Device');
 const deviceType = ref(deviceStore.selectedDevice?.type || 'Unknown');
 
 const baseUrl = 'https://api-kic.lgthinq.com';
-const patToken = ref(localStorage.getItem('patToken') || '');
-const country = ref(localStorage.getItem('country') || 'PH');
+const patToken = ref('');
+const country = ref('PH');
 const clientId = 'quasar-dashboard-001';
 const apiKey = 'v6GFvkweNo7DK7yD3ylIZ9w52aKBU0eJ7wLXkSR3';
 
@@ -646,14 +648,17 @@ const saveAsImage = async () => {
   }
 };
 
-onMounted(() => {
-  if (!patToken.value) {
-    $q.notify({ type: 'negative', message: 'No authentication token found. Please login again.', icon: 'error' });
-    router.push('/signin'); return;
-  }
+onMounted(async () => {
   if (!deviceStore.selectedDevice) {
     router.push('/'); return;
   }
+  const credentials = await authStore.loadCredentials();
+  if (!credentials) {
+    $q.notify({ type: 'negative', message: 'No authentication token found. Please login again.', icon: 'error' });
+    router.push('/signin'); return;
+  }
+  patToken.value = credentials.patToken;
+  country.value = credentials.country;
   refreshAll();
   fetchEnergyData();
   measureCalendarWidth();

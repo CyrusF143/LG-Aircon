@@ -554,12 +554,14 @@ import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { useDeviceStore } from 'src/stores/deviceStore';
+import { useAuthStore } from 'src/stores/authStore';
 import ProfileMenu from 'src/components/ProfileMenu.vue';
 
 const route = useRoute();
 const router = useRouter();
 const $q = useQuasar();
 const deviceStore = useDeviceStore();
+const authStore = useAuthStore();
 
 // Device info from route
 const deviceId = ref(route.params.deviceId || '');
@@ -568,8 +570,8 @@ const deviceType = ref(route.query.type || 'Unknown');
 
 // API Configuration
 const baseUrl = 'https://api-kic.lgthinq.com';
-const patToken = ref(localStorage.getItem('patToken') || '');
-const country = ref(localStorage.getItem('country') || 'PH');
+const patToken = ref('');
+const country = ref('PH');
 const clientId = 'quasar-dashboard-001';
 const apiKey = 'v6GFvkweNo7DK7yD3ylIZ9w52aKBU0eJ7wLXkSR3';
 
@@ -1209,7 +1211,8 @@ const resetPromptToDefault = () => {
 
 // Load on mount
 onMounted(async () => {
-  if (!patToken.value || !deviceId.value) {
+  const credentials = await authStore.loadCredentials();
+  if (!credentials || !deviceId.value) {
     $q.notify({
       type: 'negative',
       message: 'Missing device or authentication data',
@@ -1218,6 +1221,8 @@ onMounted(async () => {
     router.push('/');
     return;
   }
+  patToken.value = credentials.patToken;
+  country.value = credentials.country;
 
   // Load device data and weather in parallel
   await Promise.all([fetchDeviceData(), fetchWeatherData()]);

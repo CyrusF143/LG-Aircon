@@ -96,15 +96,19 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { useQuasar } from 'quasar';
 import { useRouter } from 'vue-router';
 import { useDeviceStore } from 'src/stores/deviceStore';
+import { useAuthStore } from 'src/stores/authStore';
+import { auth } from 'src/boot/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 import ProfileMenu from 'src/components/ProfileMenu.vue';
 
 const $q = useQuasar();
 const router = useRouter();
 const deviceStore = useDeviceStore();
+const authStore = useAuthStore();
 
 const devices = ref([]);
 const loading = ref(false);
@@ -116,22 +120,54 @@ const apiKey = 'v6GFvkweNo7DK7yD3ylIZ9w52aKBU0eJ7wLXkSR3';
 
 const generateMessageId = () => Math.random().toString(36).substring(2, 24);
 
+let unsubscribeAuth = null;
+let initialized = false;
+
 onMounted(() => {
-  const token = localStorage.getItem('patToken');
-  const user = localStorage.getItem('appUser');
-  if (!token || !user) {
-    router.replace('/signin');
-  } else {
-    fetchDevices();
-  }
+  unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
+    if (!firebaseUser) {
+      router.replace('/signin');
+      return;
+    }
+
+    // Only run init logic once per mount
+    if (initialized) return;
+    initialized = true;
+
+    authStore.setUser(firebaseUser);
+
+    try {
+      const credentials = await authStore.loadCredentials();
+      if (!credentials) {
+        router.replace('/signin');
+        return;
+      }
+      fetchDevices();
+    } catch {
+      router.replace('/signin');
+    }
+  });
+});
+
+onUnmounted(() => {
+  if (unsubscribeAuth) unsubscribeAuth();
+  initialized = false;
 });
 
 const fetchDevices = async () => {
-  const patToken = localStorage.getItem('patToken');
-  const country = localStorage.getItem('country');
-
+  if (loading.value) return;
   loading.value = true;
   error.value = null;
+
+  const credentials = await authStore.loadCredentials();
+  const patToken = credentials?.patToken;
+  const country = credentials?.country;
+
+  if (!patToken || !country) {
+    loading.value = false;
+    error.value = 'Session expired. Please log in again.';
+    return;
+  }
 
   try {
     const response = await fetch(`${baseUrl}/devices`, {

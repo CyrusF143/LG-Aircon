@@ -1,49 +1,28 @@
 <template>
   <q-page class="flex flex-center bg-grey-2">
     <q-card style="width: 420px; max-width: 95vw;">
-      <!-- Card Header -->
+      <!-- Header -->
       <q-card-section class="bg-primary text-white text-center q-py-lg">
         <q-icon name="bolt" size="48px" />
         <div class="text-h5 q-mt-sm">LG ThinQ Energy Monitor</div>
         <div class="text-subtitle2 text-blue-2">
-          {{ isNewUser ? 'Create an account to get started' : 'Sign in to your account' }}
+          {{ step === 'setup' ? 'Connect your LG ThinQ account' : 'Sign in to your account' }}
         </div>
       </q-card-section>
 
-      <q-card-section class="q-gutter-md q-pt-lg">
-        <q-input
-          v-model="username"
-          label="Username *"
-          outlined
-          :rules="[val => !!val || 'Username is required']"
-          autocomplete="username"
-        >
-          <template v-slot:prepend>
-            <q-icon name="person" />
-          </template>
-        </q-input>
+      <!-- FirebaseUI Auth -->
+      <q-card-section v-if="step === 'auth'" class="q-pa-none">
+        <div id="firebaseui-auth-container" />
+      </q-card-section>
 
-        <q-input
-          v-model="password"
-          label="Password *"
-          :type="showPassword ? 'text' : 'password'"
-          outlined
-          :rules="[val => !!val || 'Password is required', val => val.length >= 6 || 'Minimum 6 characters']"
-          autocomplete="current-password"
-        >
-          <template v-slot:prepend>
-            <q-icon name="lock" />
-          </template>
-          <template v-slot:append>
-            <q-icon
-              :name="showPassword ? 'visibility_off' : 'visibility'"
-              class="cursor-pointer"
-              @click="showPassword = !showPassword"
-            />
-          </template>
-        </q-input>
+      <!-- PAT Token Setup Step -->
+      <template v-if="step === 'setup'">
+        <q-card-section class="q-gutter-md q-pt-lg">
+          <div class="text-body2 text-grey-7">
+            <q-icon name="info" color="primary" class="q-mr-xs" />
+            One-time setup: link your LG ThinQ account.
+          </div>
 
-        <template v-if="isNewUser">
           <q-input
             v-model="country"
             label="Country Code *"
@@ -51,9 +30,7 @@
             hint="ISO 3166-1 alpha-2 (e.g., PH, US, KR)"
             :rules="[val => !!val || 'Country code is required']"
           >
-            <template v-slot:prepend>
-              <q-icon name="flag" />
-            </template>
+            <template v-slot:prepend><q-icon name="flag" /></template>
           </q-input>
 
           <q-input
@@ -64,46 +41,27 @@
             hint="Get your token from https://connect-pat.lgthinq.com"
             :rules="[val => !!val || 'PAT Token is required']"
           >
-            <template v-slot:prepend>
-              <q-icon name="vpn_key" />
-            </template>
+            <template v-slot:prepend><q-icon name="vpn_key" /></template>
           </q-input>
-        </template>
-      </q-card-section>
+        </q-card-section>
 
-      <q-card-section class="q-pt-none">
-        <q-btn
-          :label="isNewUser ? 'Create Account' : 'Sign In'"
-          color="primary"
-          class="full-width"
-          size="lg"
-          @click="submit"
-          :loading="loading"
-          :disable="!canSubmit"
-        />
-
-        <div class="text-center q-mt-md">
-          <span class="text-grey-7 text-caption">
-            {{ isNewUser ? 'Already have an account?' : "Don't have an account?" }}
-          </span>
+        <q-card-section class="q-pt-none">
           <q-btn
-            flat
-            dense
-            size="sm"
-            :label="isNewUser ? 'Sign In' : 'Create Account'"
+            label="Save & Continue"
             color="primary"
-            @click="toggleMode"
-            class="q-ml-xs"
+            class="full-width"
+            size="lg"
+            @click="saveSetup"
+            :loading="loading"
+            :disable="!country || !patToken"
           />
-        </div>
-      </q-card-section>
+        </q-card-section>
+      </template>
 
-      <!-- Error Display -->
+      <!-- Error -->
       <q-card-section class="q-pt-none" v-if="error">
         <q-banner class="bg-negative text-white" rounded>
-          <template v-slot:avatar>
-            <q-icon name="error" />
-          </template>
+          <template v-slot:avatar><q-icon name="error" /></template>
           {{ error }}
         </q-banner>
       </q-card-section>
@@ -112,54 +70,79 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, onMounted, onBeforeUnmount } from 'vue';
 import { useQuasar } from 'quasar';
 import { useRouter } from 'vue-router';
+import { useAuthStore } from 'src/stores/authStore';
+import { auth } from 'src/boot/firebase';
+import { EmailAuthProvider, GoogleAuthProvider } from 'firebase/auth';
+import * as firebaseui from 'firebaseui';
+import 'firebaseui/dist/firebaseui.css';
 
 const $q = useQuasar();
 const router = useRouter();
+const authStore = useAuthStore();
 
-const username = ref('');
-const password = ref('');
+const step = ref('auth');
 const country = ref('PH');
 const patToken = ref('');
-const showPassword = ref(false);
 const loading = ref(false);
 const error = ref(null);
-const isNewUser = ref(false);
 
 const baseUrl = 'https://api-kic.lgthinq.com';
 const clientId = 'quasar-dashboard-001';
 const apiKey = 'v6GFvkweNo7DK7yD3ylIZ9w52aKBU0eJ7wLXkSR3';
-
 const generateMessageId = () => Math.random().toString(36).substring(2, 24);
 
-const canSubmit = computed(() => {
-  if (!username.value || !password.value) return false;
-  if (isNewUser.value && (!country.value || !patToken.value)) return false;
-  return true;
-});
+let ui = null;
 
-const toggleMode = () => {
-  isNewUser.value = !isNewUser.value;
-  error.value = null;
-};
 
-const submit = async () => {
-  error.value = null;
-
-  if (isNewUser.value) {
-    await createAccount();
+const handlePostAuth = async (firebaseUser) => {
+  authStore.setUser(firebaseUser);
+  const credentials = await authStore.loadCredentials();
+  if (credentials) {
+    $q.notify({ type: 'positive', message: `Welcome, ${firebaseUser.displayName || firebaseUser.email}!`, icon: 'check_circle' });
+    router.replace('/');
+    return false; // don't redirect via FirebaseUI
   } else {
-    signIn();
+    step.value = 'setup';
+    return false;
   }
 };
 
-const createAccount = async () => {
-  loading.value = true;
+onMounted(() => {
+  const uiConfig = {
+    callbacks: {
+      signInSuccessWithAuthResult: (authResult) => {
+        handlePostAuth(authResult.user);
+        return false; // prevent FirebaseUI from redirecting
+      }
+    },
+    signInOptions: [
+      {
+        provider: EmailAuthProvider.PROVIDER_ID,
+        signInMethod: EmailAuthProvider.EMAIL_PASSWORD_SIGN_IN_METHOD,
+        requireDisplayName: false
+      },
+      GoogleAuthProvider.PROVIDER_ID
+    ],
+    signInFlow: 'popup',
+    tosUrl: '',
+    privacyPolicyUrl: ''
+  };
 
+  ui = firebaseui.auth.AuthUI.getInstance() || new firebaseui.auth.AuthUI(auth);
+  ui.start('#firebaseui-auth-container', uiConfig);
+});
+
+onBeforeUnmount(() => {
+  if (ui) ui.reset();
+});
+
+const saveSetup = async () => {
+  loading.value = true;
+  error.value = null;
   try {
-    // Validate PAT token by fetching devices
     const response = await fetch(`${baseUrl}/devices`, {
       method: 'GET',
       headers: {
@@ -170,64 +153,19 @@ const createAccount = async () => {
         'x-api-key': apiKey
       }
     });
-
     const data = await response.json();
 
     if (data.response && Array.isArray(data.response)) {
-      // Save account and credentials
-      localStorage.setItem('appUser', JSON.stringify({ username: username.value, password: password.value }));
-      localStorage.setItem('patToken', patToken.value);
-      localStorage.setItem('country', country.value);
-
-      $q.notify({ type: 'positive', message: 'Account created! Please sign in.', icon: 'check_circle' });
-      isNewUser.value = false;
-      username.value = '';
-      password.value = '';
-      patToken.value = '';
-    } else if (data.error) {
-      throw new Error(data.error.message || 'Invalid PAT token');
+      await authStore.saveCredentials(patToken.value, country.value);
+      $q.notify({ type: 'positive', message: 'Setup complete! Welcome.', icon: 'check_circle' });
+      router.replace('/');
     } else {
-      throw new Error('Invalid response from API');
+      throw new Error(data.error?.message || 'Invalid PAT token or country code');
     }
   } catch (err) {
     error.value = err.message;
   } finally {
     loading.value = false;
   }
-};
-
-const DEFAULT_ACCOUNT = {
-  username: 'admin',
-  password: 'admin123',
-  patToken: 'thinqpat_84c4f9d0c174baf6a48b85bc4d34e6791978fba9e6521296af4c',
-  country: 'PH'
-};
-
-const signIn = () => {
-  // Check default admin account
-  if (username.value === DEFAULT_ACCOUNT.username && password.value === DEFAULT_ACCOUNT.password) {
-    localStorage.setItem('patToken', DEFAULT_ACCOUNT.patToken);
-    localStorage.setItem('country', DEFAULT_ACCOUNT.country);
-    localStorage.setItem('appUser', JSON.stringify({ username: DEFAULT_ACCOUNT.username, password: DEFAULT_ACCOUNT.password }));
-    $q.notify({ type: 'positive', message: `Welcome back, ${username.value}!`, icon: 'check_circle' });
-    router.replace('/');
-    return;
-  }
-
-  // Check user-created account
-  const stored = JSON.parse(localStorage.getItem('appUser') || 'null');
-
-  if (!stored) {
-    error.value = 'No account found. Please create one first.';
-    return;
-  }
-
-  if (stored.username !== username.value || stored.password !== password.value) {
-    error.value = 'Incorrect username or password.';
-    return;
-  }
-
-  $q.notify({ type: 'positive', message: `Welcome back, ${username.value}!`, icon: 'check_circle' });
-  router.replace('/');
 };
 </script>

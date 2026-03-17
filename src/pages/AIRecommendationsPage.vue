@@ -47,7 +47,7 @@
 
       <!-- API Key Setup Dialog -->
       <q-dialog v-model="showApiKeyDialog" :maximized="$q.screen.lt.sm" transition-show="slide-up" transition-hide="slide-down">
-        <q-card :style="$q.screen.lt.sm ? 'display:flex; flex-direction:column' : 'min-width: 400px; max-width: 560px; max-height: 90vh'">
+        <q-card :style="$q.screen.lt.sm ? 'display:flex; flex-direction:column' : 'display:flex; flex-direction:column; min-width: 400px; max-width: 560px; max-height: 90vh; overflow: hidden'">
           <q-card-section class="bg-purple text-white">
             <div class="row items-center">
               <div class="text-h6 col">
@@ -58,7 +58,7 @@
             </div>
           </q-card-section>
 
-          <q-scroll-area :style="$q.screen.lt.sm ? 'height: calc(100vh - 120px)' : 'max-height: calc(90vh - 130px)'" :thumb-style="{ width: '4px' }">
+          <div :style="$q.screen.lt.sm ? 'flex: 1; overflow-y: auto' : 'overflow-y: auto; max-height: calc(90vh - 130px)'">
 
           <q-card-section>
             <div class="text-body2 q-mb-md">
@@ -171,7 +171,7 @@
               </div>
             </q-banner>
           </q-card-section>
-          </q-scroll-area>
+          </div>
 
           <q-card-actions :vertical="$q.screen.lt.sm" :align="$q.screen.lt.sm ? 'stretch' : 'right'" class="q-pa-md" style="border-top: 1px solid #eee">
             <q-btn

@@ -126,7 +126,7 @@ const patToken = ref('');
 const showPassword = ref(false);
 const loading = ref(false);
 const error = ref(null);
-const isNewUser = ref(!localStorage.getItem('appUser'));
+const isNewUser = ref(false);
 
 const baseUrl = 'https://api-kic.lgthinq.com';
 const clientId = 'quasar-dashboard-001';

@@ -73,6 +73,7 @@
             >
               <q-tooltip>Refresh All Data</q-tooltip>
             </q-btn>
+            <ProfileMenu />
           </div>
         </q-card-section>
       </q-card>
@@ -380,6 +381,7 @@ import { ref, computed, onMounted, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { useDeviceStore } from 'src/stores/deviceStore';
+import ProfileMenu from 'src/components/ProfileMenu.vue';
 
 const router = useRouter();
 const $q = useQuasar();

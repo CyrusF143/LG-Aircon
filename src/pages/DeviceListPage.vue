@@ -3,12 +3,15 @@
     <div class="q-gutter-md">
       <!-- Header -->
       <q-card class="bg-primary text-white">
-        <q-card-section>
-          <div class="text-h4">
-            <q-icon name="bolt" size="sm" class="q-mr-sm" />
-            LG ThinQ Energy Monitor
+        <q-card-section class="row items-center">
+          <div class="col">
+            <div class="text-h4">
+              <q-icon name="bolt" size="sm" class="q-mr-sm" />
+              LG ThinQ Energy Monitor
+            </div>
+            <div class="text-subtitle2">Your connected devices</div>
           </div>
-          <div class="text-subtitle2">Your connected devices</div>
+          <ProfileMenu />
         </q-card-section>
       </q-card>
 
@@ -59,14 +62,6 @@
           </q-list>
         </q-card-section>
 
-        <q-card-actions align="right">
-          <q-btn
-            flat
-            label="Change Token"
-            @click="changeToken"
-            color="negative"
-          />
-        </q-card-actions>
       </q-card>
 
       <!-- Error Display -->
@@ -105,6 +100,7 @@ import { ref, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
 import { useRouter } from 'vue-router';
 import { useDeviceStore } from 'src/stores/deviceStore';
+import ProfileMenu from 'src/components/ProfileMenu.vue';
 
 const $q = useQuasar();
 const router = useRouter();
@@ -193,12 +189,6 @@ const selectDevice = (device) => {
   router.push({ name: 'device-dashboard' });
 };
 
-const changeToken = () => {
-  localStorage.removeItem('patToken');
-  localStorage.removeItem('country');
-  localStorage.removeItem('appUser');
-  router.push('/signin');
-};
 </script>
 
 <style scoped>

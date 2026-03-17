@@ -40,6 +40,7 @@
             >
               <q-tooltip>Refresh Analysis</q-tooltip>
             </q-btn>
+            <ProfileMenu />
           </div>
         </q-card-section>
       </q-card>
@@ -553,6 +554,7 @@ import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { useDeviceStore } from 'src/stores/deviceStore';
+import ProfileMenu from 'src/components/ProfileMenu.vue';
 
 const route = useRoute();
 const router = useRouter();

@@ -2,6 +2,15 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { db, auth } from 'src/boot/firebase';
 import { ref as dbRef, set, get } from 'firebase/database';
+import { onAuthStateChanged } from 'firebase/auth';
+
+// Resolves with the current user once Firebase auth is initialized (survives refresh)
+const waitForAuth = () => new Promise((resolve) => {
+  const unsub = onAuthStateChanged(auth, (user) => {
+    unsub();
+    resolve(user);
+  });
+});
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref(null);
@@ -10,19 +19,16 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = firebaseUser;
   };
 
-  // Returns the active user from Pinia store OR Firebase directly (survives page refresh)
-  const getActiveUser = () => user.value || auth.currentUser;
-
   const saveCredentials = async (patToken, country) => {
-    const activeUser = getActiveUser();
+    const activeUser = user.value || await waitForAuth();
     if (!activeUser) return;
     await set(dbRef(db, `users/${activeUser.uid}`), { patToken, country });
   };
 
   const loadCredentials = async () => {
-    const activeUser = getActiveUser();
+    // Wait for Firebase to restore session if Pinia was reset (page refresh)
+    const activeUser = user.value || await waitForAuth();
     if (!activeUser) return null;
-    // Keep store in sync
     if (!user.value) user.value = activeUser;
     const snapshot = await get(dbRef(db, `users/${activeUser.uid}`));
     return snapshot.exists() ? snapshot.val() : null;

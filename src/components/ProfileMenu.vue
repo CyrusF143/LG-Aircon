@@ -1,5 +1,9 @@
 <template>
-  <q-btn round flat icon="account_circle" size="md">
+  <q-btn round flat size="md" :padding="photoURL ? '4px' : 'sm'">
+    <q-avatar size="32px">
+      <img v-if="photoURL" :src="photoURL" referrerpolicy="no-referrer" />
+      <q-icon v-else name="account_circle" size="32px" color="white" />
+    </q-avatar>
     <q-menu anchor="bottom right" self="top right">
       <q-list style="min-width: 150px">
         <q-item-label header class="text-grey-8">{{ displayName }}</q-item-label>
@@ -29,6 +33,8 @@ const displayName = computed(() => {
   const u = authStore.user;
   return u?.displayName || u?.email || 'Account';
 });
+
+const photoURL = computed(() => authStore.user?.photoURL || null);
 
 const logout = () => {
   authStore.setUser(null);

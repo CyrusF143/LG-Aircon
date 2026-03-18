@@ -293,7 +293,8 @@
               <div v-if="msg.role === 'user'" class="row justify-end">
                 <div style="max-width: 80%">
                   <div class="text-caption text-right text-grey-6 q-mb-xs">You</div>
-                  <div class="bg-purple text-white q-pa-md" style="border-radius: 12px 12px 2px 12px; white-space: pre-wrap; word-break: break-word">
+                  <img v-if="msg.image" :src="msg.image" style="max-width: 100%; max-height: 240px; border-radius: 12px 12px 2px 12px; display: block; margin-bottom: 4px" />
+                  <div v-if="msg.text" class="bg-purple text-white q-pa-md" style="border-radius: 12px 12px 2px 12px; white-space: pre-wrap; word-break: break-word">
                     {{ msg.text }}
                   </div>
                 </div>
@@ -328,23 +329,41 @@
 
           <!-- Input Bar -->
           <q-card-section class="q-pa-sm">
+            <!-- Image preview -->
+            <div v-if="imagePreview" class="row items-center q-mb-sm q-gutter-sm">
+              <div style="position: relative; display: inline-block">
+                <img :src="imagePreview" style="height: 72px; border-radius: 8px; display: block" />
+                <q-btn
+                  round dense unelevated icon="close" color="negative" size="xs"
+                  style="position: absolute; top: -6px; right: -6px"
+                  @click="clearImage"
+                />
+              </div>
+            </div>
+
             <div class="row items-center q-gutter-sm">
               <q-btn flat round dense icon="add_comment" color="grey-6" @click="resetChat" :disable="sendingMessage">
                 <q-tooltip>Start new analysis</q-tooltip>
               </q-btn>
+              <!-- Hidden file input -->
+              <input ref="fileInput" type="file" accept="image/*" style="display:none" @change="onImageSelected" />
+              <q-btn flat round dense icon="image" color="grey-6" @click="fileInput.click()" :disable="sendingMessage">
+                <q-tooltip>Attach image</q-tooltip>
+              </q-btn>
               <q-input
                 v-model="chatInput"
-                placeholder="Ask a follow-up question..."
+                :placeholder="imagePreview ? 'Add a message (optional)...' : 'Ask a follow-up question or paste an image...'"
                 outlined
                 dense
                 class="col"
                 @keyup.enter="sendChatMessage"
+                @paste="onPaste"
                 :disable="sendingMessage"
               />
               <q-btn
                 round unelevated color="purple" icon="send"
                 @click="sendChatMessage"
-                :disable="!chatInput.trim() || sendingMessage"
+                :disable="(!chatInput.trim() && !imagePreview) || sendingMessage"
                 :loading="sendingMessage"
               />
             </div>
@@ -386,6 +405,9 @@ const chatMessages = ref([]);
 const chatInput = ref('');
 const sendingMessage = ref(false);
 const chatContainer = ref(null);
+const fileInput = ref(null);
+const imagePreview = ref(null);
+const imageData = ref(null); // { mimeType, data: base64 }
 
 // Energy state
 const energyStats = ref(null);
@@ -690,10 +712,12 @@ const buildPrompt = () => {
 
 // Call Gemini API with full conversation history
 const callGemini = async (messages) => {
-  const contents = messages.map(m => ({
-    role: m.role,
-    parts: [{ text: m.apiText || m.text }]
-  }));
+  const contents = messages.map(m => {
+    const parts = [];
+    if (m.imageData) parts.push({ inlineData: m.imageData });
+    if (m.apiText || m.text) parts.push({ text: m.apiText || m.text });
+    return { role: m.role, parts };
+  });
 
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${selectedModel.value}:generateContent`,
@@ -724,6 +748,49 @@ const callGemini = async (messages) => {
   const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
   if (!text) throw new Error('No response received from AI');
   return text;
+};
+
+const onImageSelected = (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    const base64 = ev.target.result.split(',')[1];
+    imagePreview.value = ev.target.result;
+    imageData.value = { mimeType: file.type, data: base64 };
+  };
+  reader.readAsDataURL(file);
+  e.target.value = '';
+};
+
+const clearImage = () => {
+  imagePreview.value = null;
+  imageData.value = null;
+};
+
+const onPaste = (e) => {
+  const items = e.clipboardData?.items;
+  if (!items) return;
+  for (const item of items) {
+    if (item.kind === 'file' && item.type.startsWith('image/')) {
+      e.preventDefault();
+      const file = item.getAsFile();
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        canvas.getContext('2d').drawImage(img, 0, 0);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+        imagePreview.value = dataUrl;
+        imageData.value = { mimeType: 'image/jpeg', data: dataUrl.split(',')[1] };
+        URL.revokeObjectURL(url);
+      };
+      img.src = url;
+      break;
+    }
+  }
 };
 
 const scrollToBottom = async () => {
@@ -763,10 +830,17 @@ const startChat = async () => {
 // Send a follow-up message
 const sendChatMessage = async () => {
   const text = chatInput.value.trim();
-  if (!text || sendingMessage.value) return;
+  if ((!text && !imageData.value) || sendingMessage.value) return;
+
+  const msg = { role: 'user', text };
+  if (imageData.value) {
+    msg.image = imagePreview.value;
+    msg.imageData = imageData.value;
+  }
 
   chatInput.value = '';
-  chatMessages.value.push({ role: 'user', text });
+  clearImage();
+  chatMessages.value.push(msg);
   sendingMessage.value = true;
   await scrollToBottom();
 

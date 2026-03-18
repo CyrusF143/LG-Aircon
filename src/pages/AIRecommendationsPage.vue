@@ -343,12 +343,12 @@
 
             <div class="row items-center q-gutter-sm">
               <q-btn flat round dense icon="add_comment" color="grey-6" @click="resetChat" :disable="sendingMessage">
-                <q-tooltip>Start new analysis</q-tooltip>
+                <q-tooltip anchor="top middle" self="bottom middle">Start new analysis</q-tooltip>
               </q-btn>
               <!-- Hidden file input -->
               <input ref="fileInput" type="file" accept="image/*" style="display:none" @change="onImageSelected" />
               <q-btn flat round dense icon="image" color="grey-6" @click="fileInput.click()" :disable="sendingMessage">
-                <q-tooltip>Attach image</q-tooltip>
+                <q-tooltip anchor="top middle" self="bottom middle">Attach image</q-tooltip>
               </q-btn>
               <q-input
                 v-model="chatInput"

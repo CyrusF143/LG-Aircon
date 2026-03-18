@@ -35,10 +35,10 @@
               flat
               round
               icon="refresh"
-              @click="resetChat"
-              :loading="sendingMessage"
+              @click="getAIRecommendations"
+              :loading="loadingRecommendations"
             >
-              <q-tooltip>New Analysis</q-tooltip>
+              <q-tooltip>Refresh Analysis</q-tooltip>
             </q-btn>
             <ProfileMenu />
           </div>
@@ -194,6 +194,59 @@
         </q-card>
       </q-dialog>
 
+      <!-- Active Alerts Banner -->
+      <q-card v-if="activeAlerts.length > 0" class="bg-orange-1 border-left-warning">
+        <q-card-section>
+          <div class="row items-center q-mb-sm">
+            <q-icon name="notifications_active" color="warning" size="sm" class="q-mr-sm" />
+            <span class="text-subtitle1 text-weight-bold">Active Alerts ({{ activeAlerts.length }})</span>
+            <q-space />
+            <q-btn
+              flat
+              dense
+              size="sm"
+              label="Dismiss All"
+              @click="dismissAllAlerts"
+              color="grey-7"
+            />
+          </div>
+
+          <div class="q-gutter-sm">
+            <q-banner
+              v-for="alert in activeAlerts"
+              :key="alert.id"
+              dense
+              inline-actions
+              class="bg-white"
+              rounded
+            >
+              <template v-slot:avatar>
+                <q-icon
+                  :name="alert.icon"
+                  :color="alert.type === 'critical' ? 'negative' : alert.type === 'warning' ? 'warning' : 'info'"
+                />
+              </template>
+              <div>
+                <div class="text-weight-bold">{{ alert.title }}</div>
+                <div class="text-caption text-grey-8">{{ alert.message }}</div>
+                <div v-if="alert.action" class="text-caption text-positive q-mt-xs">
+                  💡 {{ alert.action }}
+                </div>
+              </div>
+              <template v-slot:action>
+                <q-btn
+                  flat
+                  dense
+                  round
+                  icon="close"
+                  size="sm"
+                  @click="dismissAlert(alert.id)"
+                />
+              </template>
+            </q-banner>
+          </div>
+        </q-card-section>
+      </q-card>
 
       <!-- Quick Stats Summary -->
       <q-card v-if="energyStats" flat bordered>
@@ -256,18 +309,17 @@
         </q-card-section>
       </q-card>
 
-      <!-- Chat Card -->
+      <!-- Main Action Card -->
       <q-card class="ai-card">
-        <!-- Empty State -->
-        <q-card-section v-if="chatMessages.length === 0 && !sendingMessage">
-          <div class="text-center q-pa-lg">
+        <q-card-section>
+          <div class="text-center q-pa-lg" v-if="!recommendations && !loadingRecommendations">
             <q-icon name="auto_awesome" size="80px" color="purple" class="q-mb-md" />
             <div class="text-h6 q-mb-sm">Get Personalized Recommendations</div>
             <div class="text-body2 text-grey-7 q-mb-lg">
               Our AI will analyze your usage patterns and provide actionable insights to save energy and money
             </div>
             <q-btn
-              @click="startChat"
+              @click="getAIRecommendations"
               color="purple"
               icon="psychology"
               label="Analyze My Usage"
@@ -279,84 +331,222 @@
               <q-tooltip v-else-if="!energyStats">Please ensure device has energy data</q-tooltip>
             </q-btn>
           </div>
-        </q-card-section>
 
-        <!-- Chat Messages -->
-        <template v-if="chatMessages.length > 0 || sendingMessage">
-          <div
-            ref="chatContainer"
-            :style="$q.screen.lt.sm ? 'height: calc(100vh - 350px)' : 'height: 500px'"
-            style="overflow-y: auto; padding: 16px"
-          >
-            <div v-for="(msg, idx) in chatMessages" :key="idx" class="q-mb-md">
-              <!-- User message -->
-              <div v-if="msg.role === 'user'" class="row justify-end">
-                <div style="max-width: 80%">
-                  <div class="text-caption text-right text-grey-6 q-mb-xs">You</div>
-                  <div class="bg-purple text-white q-pa-md" style="border-radius: 12px 12px 2px 12px; white-space: pre-wrap; word-break: break-word">
-                    {{ msg.text }}
-                  </div>
-                </div>
-              </div>
-              <!-- AI message -->
-              <div v-else class="row justify-start">
-                <div style="max-width: 85%">
-                  <div class="text-caption text-grey-6 q-mb-xs">
-                    <q-icon name="auto_awesome" size="xs" color="purple" class="q-mr-xs" />Gemini AI
-                  </div>
-                  <div class="bg-grey-2 q-pa-md" style="border-radius: 12px 12px 12px 2px; white-space: pre-wrap; word-break: break-word">
-                    {{ msg.text }}
-                  </div>
-                </div>
-              </div>
+          <!-- Loading State -->
+          <div v-if="loadingRecommendations" class="text-center q-pa-xl">
+            <q-spinner-gears size="80px" color="purple" />
+            <div class="text-h6 q-mt-lg text-purple">Analyzing Your Data...</div>
+            <div class="text-body2 text-grey-7 q-mt-sm">
+              Google Gemini AI is examining your energy patterns
             </div>
-
-            <!-- Typing indicator -->
-            <div v-if="sendingMessage" class="row justify-start q-mb-md">
-              <div>
-                <div class="text-caption text-grey-6 q-mb-xs">
-                  <q-icon name="auto_awesome" size="xs" color="purple" class="q-mr-xs" />Gemini AI
-                </div>
-                <div class="bg-grey-2 q-pa-md" style="border-radius: 12px 12px 12px 2px">
-                  <q-spinner-dots color="purple" size="1.5em" />
-                </div>
-              </div>
-            </div>
+            <q-linear-progress indeterminate color="purple" class="q-mt-md" />
           </div>
+        </q-card-section>
+      </q-card>
 
-          <q-separator />
+      <!-- Recommendations Display -->
+      <div v-if="recommendations && !recommendations.error" class="q-gutter-md">
 
-          <!-- Input Bar -->
-          <q-card-section class="q-pa-sm">
-            <div class="row items-center q-gutter-sm">
-              <q-btn flat round dense icon="add_comment" color="grey-6" @click="resetChat" :disable="sendingMessage">
-                <q-tooltip>Start new analysis</q-tooltip>
-              </q-btn>
-              <q-input
-                v-model="chatInput"
-                placeholder="Ask a follow-up question..."
-                outlined
-                dense
-                class="col"
-                @keyup.enter="sendChatMessage"
-                :disable="sendingMessage"
+        <!-- Immediate Actions -->
+        <q-card v-if="recommendations.immediateActions?.length > 0" flat bordered class="bg-red-1 border-left-critical">
+          <q-card-section>
+            <div class="text-h6 text-weight-bold q-mb-md">
+              <q-icon name="flash_on" color="negative" size="md" class="q-mr-xs" />
+              ⚡ Immediate Actions Required
+            </div>
+            <div class="q-gutter-md">
+              <q-card
+                v-for="(action, idx) in recommendations.immediateActions"
+                :key="idx"
+                flat
+                bordered
+                class="bg-white"
+              >
+                <q-card-section>
+                  <div class="row items-start">
+                    <q-icon name="warning" color="negative" size="md" class="q-mr-md" />
+                    <div class="col">
+                      <div class="text-h6 text-negative q-mb-xs">{{ action.title }}</div>
+                      <div class="text-body1">{{ action.description }}</div>
+                      <q-badge
+                        v-if="action.potentialSavings"
+                        color="positive"
+                        :label="'💰 Save ' + action.potentialSavings"
+                        class="q-mt-sm"
+                      />
+                    </div>
+                  </div>
+                </q-card-section>
+              </q-card>
+            </div>
+          </q-card-section>
+        </q-card>
+
+        <!-- Cost Savings -->
+        <q-card v-if="recommendations.costSavings?.length > 0" flat bordered class="bg-green-1 border-left-success">
+          <q-card-section>
+            <div class="text-h6 text-weight-bold q-mb-md">
+              <q-icon name="savings" color="positive" size="md" class="q-mr-xs" />
+              💰 Cost Savings Opportunities
+            </div>
+            <div class="q-gutter-md">
+              <q-card
+                v-for="(saving, idx) in recommendations.costSavings"
+                :key="idx"
+                flat
+                bordered
+                class="bg-white"
+              >
+                <q-card-section>
+                  <div class="text-body1 text-weight-medium q-mb-md">{{ saving.recommendation }}</div>
+                  <div class="row q-gutter-sm">
+                    <q-chip color="positive" text-color="white" icon="calendar_month" size="md">
+                      <strong>Monthly:</strong>&nbsp;{{ saving.monthlySavings }}
+                    </q-chip>
+                    <q-chip color="green-8" text-color="white" icon="event_note" size="md">
+                      <strong>Annual:</strong>&nbsp;{{ saving.annualSavings }}
+                    </q-chip>
+                  </div>
+                </q-card-section>
+              </q-card>
+            </div>
+          </q-card-section>
+        </q-card>
+
+        <!-- Usage Insights -->
+        <q-card v-if="recommendations.usageInsights?.length > 0" flat bordered class="bg-blue-1 border-left-info">
+          <q-card-section>
+            <div class="text-h6 text-weight-bold q-mb-md">
+              <q-icon name="insights" color="primary" size="md" class="q-mr-xs" />
+              📊 Usage Pattern Insights
+            </div>
+            <q-list separator bordered class="rounded-borders bg-white">
+              <q-item
+                v-for="(insight, idx) in recommendations.usageInsights"
+                :key="idx"
+              >
+                <q-item-section avatar>
+                  <q-avatar
+                    :color="insight.severity === 'critical' ? 'negative' : insight.severity === 'warning' ? 'warning' : 'info'"
+                    text-color="white"
+                    :icon="insight.severity === 'critical' ? 'error' : insight.severity === 'warning' ? 'warning' : 'info'"
+                  />
+                </q-item-section>
+                <q-item-section>
+                  <q-item-label class="text-body1">{{ insight.insight }}</q-item-label>
+                </q-item-section>
+              </q-item>
+            </q-list>
+          </q-card-section>
+        </q-card>
+
+        <!-- Maintenance -->
+        <q-card v-if="recommendations.maintenance?.length > 0" flat bordered class="bg-purple-1 border-left-maintenance">
+          <q-card-section>
+            <div class="text-h6 text-weight-bold q-mb-md">
+              <q-icon name="build_circle" color="purple" size="md" class="q-mr-xs" />
+              🔧 Maintenance Reminders
+            </div>
+            <q-list separator bordered class="rounded-borders bg-white">
+              <q-item
+                v-for="(task, idx) in recommendations.maintenance"
+                :key="idx"
+              >
+                <q-item-section>
+                  <q-item-label class="text-subtitle1 text-weight-bold">{{ task.task }}</q-item-label>
+                  <q-item-label caption class="text-body2 q-mt-xs">{{ task.reason }}</q-item-label>
+                </q-item-section>
+                <q-item-section side>
+                  <q-badge
+                    :color="task.urgency === 'high' ? 'negative' : task.urgency === 'medium' ? 'warning' : 'positive'"
+                    :label="task.urgency.toUpperCase()"
+                    class="text-weight-bold"
+                  />
+                </q-item-section>
+              </q-item>
+            </q-list>
+          </q-card-section>
+        </q-card>
+
+        <!-- Efficiency Tips -->
+        <q-card v-if="recommendations.efficiencyTips?.length > 0" flat bordered class="bg-amber-1 border-left-tips">
+          <q-card-section>
+            <div class="text-h6 text-weight-bold q-mb-md">
+              <q-icon name="tips_and_updates" color="amber" size="md" class="q-mr-xs" />
+              💡 Energy Efficiency Tips
+            </div>
+            <q-list separator bordered class="rounded-borders bg-white">
+              <q-item
+                v-for="(tip, idx) in recommendations.efficiencyTips"
+                :key="idx"
+              >
+                <q-item-section avatar>
+                  <q-avatar
+                    color="amber-8"
+                    text-color="white"
+                    :icon="tip.category === 'temperature' ? 'thermostat' : tip.category === 'schedule' ? 'schedule' : 'settings'"
+                  />
+                </q-item-section>
+                <q-item-section>
+                  <q-item-label class="text-body1">{{ tip.tip }}</q-item-label>
+                </q-item-section>
+              </q-item>
+            </q-list>
+          </q-card-section>
+        </q-card>
+
+        <!-- Action Buttons -->
+        <q-card flat>
+          <q-card-section>
+            <div class="row q-gutter-sm justify-end">
+              <q-btn
+                flat
+                label="Download Report"
+                icon="download"
+                @click="downloadRecommendations"
+                color="primary"
               />
               <q-btn
-                round unelevated color="purple" icon="send"
-                @click="sendChatMessage"
-                :disable="!chatInput.trim() || sendingMessage"
-                :loading="sendingMessage"
+                flat
+                label="Share"
+                icon="share"
+                @click="shareRecommendations"
+                color="primary"
+              />
+              <q-btn
+                unelevated
+                label="Analyze Again"
+                icon="refresh"
+                @click="getAIRecommendations"
+                color="purple"
               />
             </div>
           </q-card-section>
-        </template>
+        </q-card>
+      </div>
+
+      <!-- Error State -->
+      <q-card v-if="recommendations?.error" flat bordered class="bg-negative text-white">
+        <q-card-section>
+          <div class="row items-center">
+            <q-icon name="error" size="md" class="q-mr-md" />
+            <div class="col">
+              <div class="text-h6">Analysis Failed</div>
+              <div class="text-body2">{{ recommendations.error }}</div>
+            </div>
+          </div>
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Try Again" @click="getAIRecommendations" />
+          <q-btn flat label="Go Back" @click="goBack" />
+        </q-card-actions>
       </q-card>
     </div>
   </q-page>
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick } from 'vue';
+import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { useDeviceStore } from 'src/stores/deviceStore';
@@ -381,13 +571,10 @@ const country = ref('PH');
 const clientId = 'quasar-dashboard-001';
 const apiKey = 'v6GFvkweNo7DK7yD3ylIZ9w52aKBU0eJ7wLXkSR3';
 
-// Chat state
-const chatMessages = ref([]);
-const chatInput = ref('');
-const sendingMessage = ref(false);
-const chatContainer = ref(null);
-
-// Energy state
+// State
+const recommendations = ref(null);
+const loadingRecommendations = ref(false);
+const activeAlerts = ref([]);
 const energyStats = ref(null);
 const deviceStatus = ref(null);
 const energyData = ref([]);
@@ -399,7 +586,7 @@ const apiKeyInput = ref('');
 const hasApiKey = ref(false);
 const selectedModel = ref('gemini-flash-latest');
 
-const defaultPrompt = `Analyze my AC energy usage and give me personalized recommendations.
+const defaultPrompt = `Analyze this AC usage and return recommendations as JSON.
 
 Device: {deviceName}
 Power: {powerStatus} | Run State: {runState}
@@ -409,7 +596,18 @@ Wind Direction (Up-Down Swing): {windDirectionUpDown}
 Usage: {monthlyKwh} kWh ({avgKwh} kWh/day avg), Peak: {peakKwh} kWh
 Rate: ₱{ratePerKwh}/kWh (Philippines)
 Location: {location}
-Outside: {outdoorTemp}°C, {humidity}% humidity, {weatherDesc}`;
+Outside: {outdoorTemp}°C, {humidity}% humidity, {weatherDesc}
+
+Return ONLY valid JSON (no markdown, no backticks):
+{
+  "immediateActions": [{"title": "Brief title", "description": "Short description", "potentialSavings": "₱X/month"}],
+  "costSavings": [{"recommendation": "Brief tip", "monthlySavings": "₱XX", "annualSavings": "₱XX"}],
+  "usageInsights": [{"insight": "Brief insight", "severity": "info"}],
+  "maintenance": [{"task": "Brief task", "reason": "Why", "urgency": "medium"}],
+  "efficiencyTips": [{"tip": "Brief tip", "category": "temperature"}]
+}
+
+Keep each string concise (under 100 chars). Factor in outdoor vs room temp difference, run state, fan mode, and humidity. Focus on Philippine tropical climate and ₱10-15/kWh rates.`;
 
 const customPrompt = ref(defaultPrompt);
 const availableModels = ref([
@@ -666,125 +864,298 @@ const fetchAvailableModels = async () => {
   }
 };
 
-// Build the prompt from template with current device data
-const buildPrompt = () => {
-  return customPrompt.value
-    .replace('{deviceName}', deviceName.value)
-    .replace('{powerStatus}', deviceStatus.value?.operation?.airConOperationMode || 'Unknown')
-    .replace('{runState}', deviceStatus.value?.runState?.currentState || 'Unknown')
-    .replace('{acJobMode}', deviceStatus.value?.airConJobMode?.currentJobMode || 'Unknown')
-    .replace('{fanSpeed}', deviceStatus.value?.airFlow?.windStrength || 'Unknown')
-    .replace('{windStrengthDetail}', deviceStatus.value?.airFlow?.windStrengthDetail || 'Unknown')
-    .replace('{currentRoomTemp}', deviceStatus.value?.temperature?.currentTemperature ?? 'N/A')
-    .replace('{targetTemp}', deviceStatus.value?.temperature?.targetTemperature ?? 'N/A')
-    .replace('{windDirectionUpDown}', deviceStatus.value?.windDirection?.rotateUpDown ? 'Swing ON' : 'Swing OFF')
-    .replace('{monthlyKwh}', energyStats.value?.total || 0)
-    .replace('{avgKwh}', energyStats.value?.average || 0)
-    .replace('{peakKwh}', energyStats.value?.maxDayKwh || 0)
-    .replace('{ratePerKwh}', 12.50)
-    .replace('{location}', currentWeather.value?.location || locationInput.value)
-    .replace('{outdoorTemp}', currentWeather.value?.temperature ?? 'N/A')
-    .replace('{humidity}', currentWeather.value?.humidity ?? 'N/A')
-    .replace('{weatherDesc}', currentWeather.value?.description || 'N/A');
-};
+// AI Analysis
+const getAIRecommendations = async () => {
+  loadingRecommendations.value = true;
 
-// Call Gemini API with full conversation history
-const callGemini = async (messages) => {
-  const contents = messages.map(m => ({
-    role: m.role,
-    parts: [{ text: m.apiText || m.text }]
-  }));
+  try {
+    const deviceData = {
+      deviceName: deviceName.value,
+      deviceType: deviceType.value,
+      currentStatus: {
+        powerStatus: deviceStatus.value?.operation?.airConOperationMode || 'Unknown',
+        runState: deviceStatus.value?.runState?.currentState || 'Unknown',
+        acJobMode: deviceStatus.value?.airConJobMode?.currentJobMode || 'Unknown',
+        fanSpeed: deviceStatus.value?.airFlow?.windStrength || 'Unknown',
+        windStrengthDetail: deviceStatus.value?.airFlow?.windStrengthDetail || 'Unknown',
+        currentRoomTemp: deviceStatus.value?.temperature?.currentTemperature ?? 'N/A',
+        targetTemp: deviceStatus.value?.temperature?.targetTemperature ?? 'N/A',
+        windDirectionUpDown: deviceStatus.value?.windDirection?.rotateUpDown ? 'Swing ON' : 'Swing OFF'
+      },
+      energyData: {
+        thisMonth: energyStats.value?.total || 0,
+        average: energyStats.value?.average || 0,
+        peakDay: energyStats.value?.maxDayKwh || 0,
+        daysActive: energyStats.value?.daysActive || 0
+      },
+      costs: {
+        ratePerKwh: 12.50
+      }
+    };
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${selectedModel.value}:generateContent`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-goog-api-key': apiKeyInput.value },
-      body: JSON.stringify({
-        systemInstruction: {
-          parts: [{ text: 'You are a friendly energy advisor. Always respond in clear, natural language using bullet points and sections. Never return JSON or code blocks.' }]
-        },
-        contents,
-        generationConfig: { temperature: 0.7, maxOutputTokens: 4096 }
-      })
+    // Get API key
+    const geminiApiKey = apiKeyInput.value;
+    if (!geminiApiKey) {
+      throw new Error('No Gemini API key set. Please configure it in Settings.');
     }
-  );
 
-  if (!response.ok) {
-    const err = await response.json();
-    throw new Error(err.error?.message || `API error: ${response.status}`);
+    // Build prompt with variable replacements
+    let prompt = customPrompt.value
+      .replace('{deviceName}', deviceData.deviceName)
+      .replace('{powerStatus}', deviceData.currentStatus.powerStatus)
+      .replace('{runState}', deviceData.currentStatus.runState)
+      .replace('{acJobMode}', deviceData.currentStatus.acJobMode)
+      .replace('{fanSpeed}', deviceData.currentStatus.fanSpeed)
+      .replace('{windStrengthDetail}', deviceData.currentStatus.windStrengthDetail)
+      .replace('{currentRoomTemp}', deviceData.currentStatus.currentRoomTemp)
+      .replace('{targetTemp}', deviceData.currentStatus.targetTemp)
+      .replace('{windDirectionUpDown}', deviceData.currentStatus.windDirectionUpDown)
+      .replace('{monthlyKwh}', deviceData.energyData.thisMonth)
+      .replace('{avgKwh}', deviceData.energyData.average)
+      .replace('{peakKwh}', deviceData.energyData.peakDay)
+      .replace('{ratePerKwh}', deviceData.costs.ratePerKwh)
+      .replace('{location}', currentWeather.value?.location || locationInput.value)
+      .replace('{outdoorTemp}', currentWeather.value?.temperature ?? 'N/A')
+      .replace('{humidity}', currentWeather.value?.humidity ?? 'N/A')
+      .replace('{weatherDesc}', currentWeather.value?.description || 'N/A');
+
+    // Call Google Gemini API with selected model
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${selectedModel.value}:generateContent`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-goog-api-key": geminiApiKey
+      },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: prompt
+          }]
+        }],
+        generationConfig: {
+          temperature: 0.4,
+          topK: 20,
+          topP: 0.8,
+          maxOutputTokens: 4096,
+          responseMimeType: "application/json"
+        }
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error?.message || `API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    // Check if response was cut off
+    if (data.candidates?.[0]?.finishReason === 'MAX_TOKENS') {
+      throw new Error('Response was cut off. Try using a different model or simplifying the request.');
+    }
+
+    // Extract text from Gemini response
+    const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (!aiResponse) {
+      throw new Error('No response received from AI');
+    }
+
+    // Clean up response - remove markdown code blocks if present
+    let cleanedResponse = aiResponse.trim();
+    cleanedResponse = cleanedResponse.replace(/```json\n?/g, '');
+    cleanedResponse = cleanedResponse.replace(/```\n?/g, '');
+    cleanedResponse = cleanedResponse.trim();
+
+    // Try to parse as JSON directly first
+    try {
+      recommendations.value = JSON.parse(cleanedResponse);
+    } catch {
+      // If direct parse fails, try to find JSON in the response
+      const jsonMatch = cleanedResponse.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        recommendations.value = JSON.parse(jsonMatch[0]);
+      } else {
+        throw new Error("Could not parse AI response as JSON. Response: " + cleanedResponse.substring(0, 200));
+      }
+    }
+
+    localStorage.setItem(`recommendations_${deviceId.value}`, JSON.stringify(recommendations.value));
+    localStorage.setItem('lastAIAnalysis', new Date().toISOString());
+
+    $q.notify({
+      type: 'positive',
+      message: 'Analysis Complete!',
+      caption: 'Your personalized recommendations are ready',
+      icon: 'auto_awesome'
+    });
+
+    checkForCriticalAlerts();
+
+  } catch (error) {
+    console.error("AI Analysis Error:", error);
+    recommendations.value = {
+      error: error.message || "Failed to generate recommendations. Please try again."
+    };
+
+    $q.notify({
+      type: 'negative',
+      message: 'Analysis failed',
+      caption: error.message,
+      icon: 'error'
+    });
+  } finally {
+    loadingRecommendations.value = false;
   }
-
-  const data = await response.json();
-
-  if (data.candidates?.[0]?.finishReason === 'MAX_TOKENS') {
-    throw new Error('Response was cut off. Try a different model.');
-  }
-
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!text) throw new Error('No response received from AI');
-  return text;
 };
 
-const scrollToBottom = async () => {
-  await nextTick();
-  if (chatContainer.value) {
-    chatContainer.value.scrollTop = chatContainer.value.scrollHeight;
-  }
-};
+// Check for critical alerts
+const checkForCriticalAlerts = () => {
+  if (!recommendations.value) return;
 
-// Start a new analysis chat — first message uses the prompt template
-const startChat = async () => {
-  if (!apiKeyInput.value) {
-    showApiKeyDialog.value = true;
-    return;
-  }
+  const newAlerts = [];
 
-  chatMessages.value.push({
-    role: 'user',
-    text: '🔍 Analyze my AC energy usage and give me personalized recommendations.',
-    apiText: buildPrompt()
+  recommendations.value.immediateActions?.forEach((action, idx) => {
+    newAlerts.push({
+      id: `immediate_${idx}`,
+      type: 'critical',
+      icon: 'warning',
+      title: action.title,
+      message: action.description,
+      action: action.potentialSavings ? `Save: ${action.potentialSavings}` : null
+    });
   });
 
-  sendingMessage.value = true;
-  await scrollToBottom();
+  recommendations.value.maintenance?.forEach((task, idx) => {
+    if (task.urgency === 'high') {
+      newAlerts.push({
+        id: `maintenance_${idx}`,
+        type: 'warning',
+        icon: 'build',
+        title: task.task,
+        message: task.reason,
+        action: 'Schedule maintenance'
+      });
+    }
+  });
 
-  try {
-    const reply = await callGemini(chatMessages.value);
-    chatMessages.value.push({ role: 'model', text: reply });
-  } catch (err) {
-    chatMessages.value.push({ role: 'model', text: `❌ Error: ${err.message}` });
-  } finally {
-    sendingMessage.value = false;
-    await scrollToBottom();
-  }
+  recommendations.value.usageInsights?.forEach((insight, idx) => {
+    if (insight.severity === 'critical') {
+      newAlerts.push({
+        id: `insight_${idx}`,
+        type: 'critical',
+        icon: 'error',
+        title: 'Critical Usage Alert',
+        message: insight.insight,
+        action: null
+      });
+    }
+  });
+
+  activeAlerts.value = newAlerts;
 };
 
-// Send a follow-up message
-const sendChatMessage = async () => {
-  const text = chatInput.value.trim();
-  if (!text || sendingMessage.value) return;
-
-  chatInput.value = '';
-  chatMessages.value.push({ role: 'user', text });
-  sendingMessage.value = true;
-  await scrollToBottom();
-
-  try {
-    const reply = await callGemini(chatMessages.value);
-    chatMessages.value.push({ role: 'model', text: reply });
-  } catch (err) {
-    chatMessages.value.push({ role: 'model', text: `❌ Error: ${err.message}` });
-  } finally {
-    sendingMessage.value = false;
-    await scrollToBottom();
-  }
+// Alert management
+const dismissAlert = (alertId) => {
+  activeAlerts.value = activeAlerts.value.filter(alert => alert.id !== alertId);
 };
 
-// Clear chat and go back to empty state
-const resetChat = () => {
-  chatMessages.value = [];
-  chatInput.value = '';
+const dismissAllAlerts = () => {
+  activeAlerts.value = [];
+};
+
+// Download recommendations
+const downloadRecommendations = () => {
+  if (!recommendations.value) return;
+
+  let content = `AI-Powered Energy Recommendations\n`;
+  content += `Device: ${deviceName.value}\n`;
+  content += `Generated: ${new Date().toLocaleString()}\n`;
+  content += `\n${'='.repeat(50)}\n\n`;
+
+  if (recommendations.value.immediateActions?.length) {
+    content += `IMMEDIATE ACTIONS:\n`;
+    recommendations.value.immediateActions.forEach((action, i) => {
+      content += `${i + 1}. ${action.title}\n`;
+      content += `   ${action.description}\n`;
+      if (action.potentialSavings) content += `   Savings: ${action.potentialSavings}\n`;
+      content += `\n`;
+    });
+  }
+
+  if (recommendations.value.costSavings?.length) {
+    content += `COST SAVINGS:\n`;
+    recommendations.value.costSavings.forEach((saving, i) => {
+      content += `${i + 1}. ${saving.recommendation}\n`;
+      content += `   Monthly: ${saving.monthlySavings} | Annual: ${saving.annualSavings}\n\n`;
+    });
+  }
+
+  if (recommendations.value.usageInsights?.length) {
+    content += `USAGE INSIGHTS:\n`;
+    recommendations.value.usageInsights.forEach((insight, i) => {
+      content += `${i + 1}. [${insight.severity.toUpperCase()}] ${insight.insight}\n`;
+    });
+    content += `\n`;
+  }
+
+  if (recommendations.value.maintenance?.length) {
+    content += `MAINTENANCE:\n`;
+    recommendations.value.maintenance.forEach((task, i) => {
+      content += `${i + 1}. ${task.task} [${task.urgency.toUpperCase()}]\n`;
+      content += `   ${task.reason}\n\n`;
+    });
+  }
+
+  if (recommendations.value.efficiencyTips?.length) {
+    content += `EFFICIENCY TIPS:\n`;
+    recommendations.value.efficiencyTips.forEach((tip, i) => {
+      content += `${i + 1}. ${tip.tip}\n`;
+    });
+  }
+
+  const blob = new Blob([content], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `energy-recommendations-${deviceId.value}-${Date.now()}.txt`;
+  a.click();
+  URL.revokeObjectURL(url);
+
+  $q.notify({
+    type: 'positive',
+    message: 'Report Downloaded',
+    icon: 'download'
+  });
+};
+
+// Share recommendations
+const shareRecommendations = () => {
+  if (!recommendations.value) return;
+
+  let text = `AI Energy Recommendations for ${deviceName.value}\n\n`;
+
+  if (recommendations.value.costSavings?.length) {
+    const firstSaving = recommendations.value.costSavings[0];
+    text += `💰 ${firstSaving.recommendation}\n`;
+    text += `Potential savings: ${firstSaving.monthlySavings}/month\n\n`;
+  }
+
+  text += `Generated by LG ThinQ Energy Monitor`;
+
+  if (navigator.share) {
+    navigator.share({
+      title: 'Energy Recommendations',
+      text: text
+    });
+  } else {
+    navigator.clipboard.writeText(text);
+    $q.notify({
+      type: 'positive',
+      message: 'Copied to clipboard',
+      icon: 'content_copy'
+    });
+  }
 };
 
 // Go back
@@ -866,6 +1237,16 @@ onMounted(async () => {
     await fetchAvailableModels();
   }
 
+  // Load saved recommendations
+  const savedRecs = localStorage.getItem(`recommendations_${deviceId.value}`);
+  if (savedRecs) {
+    try {
+      recommendations.value = JSON.parse(savedRecs);
+      checkForCriticalAlerts();
+    } catch (e) {
+      console.error('Failed to load saved recommendations:', e);
+    }
+  }
 });
 </script>
 

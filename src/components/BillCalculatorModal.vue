@@ -172,6 +172,7 @@ const saveAsImage = async () => {
         savedAt: new Date().toISOString()
       });
       $q.notify({ type: 'info', message: 'Bill record saved to cloud!', icon: 'cloud_done' });
+      emit('update:modelValue', false);
     }
 
   } catch (err) {

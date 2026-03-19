@@ -59,6 +59,14 @@
             <q-btn
               flat
               round
+              icon="history"
+              @click="router.push({ name: 'bill-history' })"
+            >
+              <q-tooltip>Bill History</q-tooltip>
+            </q-btn>
+            <q-btn
+              flat
+              round
               icon="attach_money"
               @click="showBillCalculator = true"
             >

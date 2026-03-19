@@ -23,6 +23,11 @@ const routes = [
         name: 'ai-insights',
         component: () => import('pages/AIRecommendationsPage.vue'),
         props: true
+      },
+      {
+        path: 'bill-history',
+        name: 'bill-history',
+        component: () => import('pages/BillHistoryPage.vue')
       }
     ]
   },

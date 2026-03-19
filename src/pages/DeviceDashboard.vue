@@ -79,83 +79,11 @@
       </q-card>
 
       <!-- Electricity Bill Calculator Modal -->
-      <q-dialog v-model="showBillCalculator" @hide="onDialogHide">
-        <q-card class="bill-calculator-card">
-          <q-card-section class="bg-primary text-white">
-            <div class="text-h6">
-              <q-icon name="attach_money" class="q-mr-sm" />
-              Calculate Electricity Bill
-            </div>
-          </q-card-section>
-          <q-card-section class="q-pt-md">
-            <q-input v-model.number="billCalc.totalAmountDue" label="Household Total Amount Due" type="number" outlined prefix="₱" :rules="[val => val > 0 || 'Must be greater than 0']" class="q-mb-md">
-              <template v-slot:prepend><q-icon name="receipt" /></template>
-            </q-input>
-            <q-input v-model.number="billCalc.totalKwhUsed" label="Household Total kWh Used" type="number" outlined suffix="kWh" :rules="[val => val > 0 || 'Must be greater than 0']" class="q-mb-md">
-              <template v-slot:prepend><q-icon name="bolt" /></template>
-            </q-input>
-
-            <!-- Result Display -->
-                          <div ref="billResultRef">
-              <q-card v-if="calculatedBill" flat bordered class="bg-blue-1 q-pa-md">
-                <div class="text-subtitle2 text-grey-8 q-mb-xs">AC Device Usage Cost</div>
-                <div class="text-caption text-grey-6 q-mb-sm">
-                  <q-icon name="date_range" size="xs" class="q-mr-xs" />
-                  {{ displayDateRange }}
-                </div>
-
-                <!-- Household inputs summary -->
-                <div class="row q-col-gutter-sm q-mb-sm">
-                  <div class="col-6">
-                    <div class="text-caption text-grey-7">Household Amount Due</div>
-                    <div class="text-body2 text-weight-medium">₱{{ billCalc.totalAmountDue?.toLocaleString() }}</div>
-                  </div>
-                  <div class="col-6">
-                    <div class="text-caption text-grey-7">Household Total kWh</div>
-                    <div class="text-body2 text-weight-medium">{{ billCalc.totalKwhUsed?.toLocaleString() }} kWh</div>
-                  </div>
-                </div>
-
-                <div class="row items-center justify-between">
-                  <div>
-                    <div class="text-caption text-grey-7">Rate per kWh</div>
-                    <div class="text-body1 text-weight-medium">₱{{ ratePerKwh }}</div>
-                  </div>
-                  <div>
-                    <div class="text-caption text-grey-7">Device Total kWh</div>
-                    <div class="text-body1 text-weight-medium">{{ energyStats?.total || '0.00' }} kWh</div>
-                  </div>
-                </div>
-                <q-separator class="q-my-md" />
-                <div class="text-center">
-                  <div class="text-caption text-grey-7">Your AC Electricity Cost</div>
-                  <div class="text-h4 text-positive text-weight-bold">₱{{ calculatedBill }}</div>
-                  <div class="text-caption text-grey-6">for the selected period</div>
-                </div>
-              </q-card>
-            </div>
-          </q-card-section>
-          <q-card-actions align="right">
-            <q-btn flat label="Close" color="grey" v-close-popup />
-            <q-btn
-              v-if="!calculatedBill"
-              label="Calculate"
-              color="primary"
-              icon="calculate"
-              @click="calculateBill"
-              :disable="!billCalc.totalAmountDue || !billCalc.totalKwhUsed || !energyStats"
-            />
-            <q-btn
-              v-else
-              label="Save as Image"
-              color="positive"
-              icon="save_alt"
-              @click="saveAsImage"
-              :loading="savingImage"
-            />
-          </q-card-actions>
-        </q-card>
-      </q-dialog>
+      <BillCalculatorModal
+        v-model="showBillCalculator"
+        :energy-stats="energyStats"
+        :display-date-range="displayDateRange"
+      />
 
       <!-- Device Status Cards -->
       <div class="row q-col-gutter-sm q-mb-md" v-if="deviceStatus">
@@ -383,6 +311,7 @@ import { useQuasar } from 'quasar';
 import { useDeviceStore } from 'src/stores/deviceStore';
 import { useAuthStore } from 'src/stores/authStore';
 import ProfileMenu from 'src/components/ProfileMenu.vue';
+import BillCalculatorModal from 'src/components/BillCalculatorModal.vue';
 
 const router = useRouter();
 const $q = useQuasar();
@@ -414,11 +343,6 @@ const monthRangeModel = ref({ from: getCurrentMonth(), to: getCurrentMonth() });
 const dateRange = ref({ startDate: getDefaultStartDate(), endDate: getDefaultEndDate() });
 
 const showBillCalculator = ref(false);
-const billCalc = ref({ totalAmountDue: null, totalKwhUsed: null });
-const calculatedBill = ref(null);
-const ratePerKwh = ref(null);
-const savingImage = ref(false);
-const billResultRef = ref(null);
 
 const calendarWrapRef = ref(null);
 const calendarWidth = ref('auto');
@@ -517,11 +441,6 @@ const onMonthRangeChange = (v) => {
   }
 };
 
-const onDialogHide = () => {
-  calculatedBill.value = null;
-  ratePerKwh.value = null;
-  billCalc.value = { totalAmountDue: null, totalKwhUsed: null };
-};
 
 const labelInterval = computed(() => {
   const len = energyData.value.length;
@@ -604,49 +523,6 @@ const refreshAll = async () => {
 
 const goBack = () => router.push('/');
 
-const calculateBill = () => {
-  if (!billCalc.value.totalAmountDue || !billCalc.value.totalKwhUsed || !energyStats.value) {
-    $q.notify({ type: 'warning', message: 'Please fill in all fields', icon: 'warning' });
-    return;
-  }
-  ratePerKwh.value = (billCalc.value.totalAmountDue / billCalc.value.totalKwhUsed).toFixed(2);
-  calculatedBill.value = (ratePerKwh.value * parseFloat(energyStats.value.total)).toFixed(2);
-  $q.notify({ type: 'positive', message: 'Bill calculated successfully!', icon: 'check_circle' });
-};
-
-const saveAsImage = async () => {
-  if (!billResultRef.value) return;
-  savingImage.value = true;
-
-  try {
-    // Dynamically load html2canvas from CDN
-    if (!window.html2canvas) {
-      await new Promise((resolve, reject) => {
-        const s = document.createElement('script');
-        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-        s.onload = resolve;
-        s.onerror = reject;
-        document.head.appendChild(s);
-      });
-    }
-
-    const canvas = await window.html2canvas(billResultRef.value, {
-      backgroundColor: '#ffffff',
-      scale: 2
-    });
-
-    const link = document.createElement('a');
-    link.download = `AC-Bill-${displayDateRange.value.replace(/\//g, '-').replace(' – ', '_to_')}.png`;
-    link.href = canvas.toDataURL('image/png');
-    link.click();
-
-    $q.notify({ type: 'positive', message: 'Image saved successfully!', icon: 'download' });
-  } catch (err) {
-    $q.notify({ type: 'negative', message: `Failed to save image: ${err.message}`, icon: 'error' });
-  } finally {
-    savingImage.value = false;
-  }
-};
 
 onMounted(async () => {
   if (!deviceStore.selectedDevice) {

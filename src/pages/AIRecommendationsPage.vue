@@ -380,6 +380,8 @@ import { useRoute, useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { useDeviceStore } from 'src/stores/deviceStore';
 import { useAuthStore } from 'src/stores/authStore';
+import { auth, firestore } from 'src/boot/firebase';
+import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import ProfileMenu from 'src/components/ProfileMenu.vue';
 
 const route = useRoute();
@@ -415,6 +417,28 @@ const deviceStatus = ref(null);
 const energyData = ref([]);
 const periodType = ref('DAILY');
 
+// Bill history from Firestore
+const billHistory = ref([]);
+
+const fetchBillHistory = async () => {
+  const uid = auth.currentUser?.uid;
+  if (!uid) return;
+  try {
+    const q = query(collection(firestore, 'users', uid, 'bills'), orderBy('savedAt', 'desc'));
+    const snapshot = await getDocs(q);
+    billHistory.value = snapshot.docs.map(d => d.data());
+  } catch {
+    // non-critical, silently skip
+  }
+};
+
+const formatBillHistoryForPrompt = () => {
+  if (!billHistory.value.length) return 'No saved bill records yet.';
+  return billHistory.value.slice(0, 6).map(b =>
+    `- ${b.dateRange}: ₱${b.calculatedBill?.toFixed(2)} (${b.deviceTotalKwh} kWh device, rate ₱${b.ratePerKwh}/kWh, ${b.daysActive} days active, avg ${b.avgKwhPerDay} kWh/day, peak ${b.peakDayKwh} kWh)`
+  ).join('\n');
+};
+
 // API Key Management
 const showApiKeyDialog = ref(false);
 const apiKeyInput = ref('');
@@ -431,7 +455,10 @@ Wind Direction (Up-Down Swing): {windDirectionUpDown}
 Usage: {monthlyKwh} kWh ({avgKwh} kWh/day avg), Peak: {peakKwh} kWh
 Rate: ₱{ratePerKwh}/kWh (Philippines)
 Location: {location}
-Outside: {outdoorTemp}°C, {humidity}% humidity, {weatherDesc}`;
+Outside: {outdoorTemp}°C, {humidity}% humidity, {weatherDesc}
+
+Bill History (recent periods):
+{billHistory}`;
 
 const customPrompt = ref(defaultPrompt);
 const availableModels = ref([
@@ -707,7 +734,8 @@ const buildPrompt = () => {
     .replace('{location}', currentWeather.value?.location || locationInput.value)
     .replace('{outdoorTemp}', currentWeather.value?.temperature ?? 'N/A')
     .replace('{humidity}', currentWeather.value?.humidity ?? 'N/A')
-    .replace('{weatherDesc}', currentWeather.value?.description || 'N/A');
+    .replace('{weatherDesc}', currentWeather.value?.description || 'N/A')
+    .replace('{billHistory}', formatBillHistoryForPrompt());
 };
 
 // Call Gemini API with full conversation history
@@ -932,8 +960,8 @@ onMounted(async () => {
     hasApiKey.value = !!aiSettings.apiKey;
   }
 
-  // Load device data and weather in parallel
-  await Promise.all([fetchDeviceData(), fetchWeatherData()]);
+  // Load device data, weather, and bill history in parallel
+  await Promise.all([fetchDeviceData(), fetchWeatherData(), fetchBillHistory()]);
 
   // Fetch available models if we have an API key
   if (apiKeyInput.value) {

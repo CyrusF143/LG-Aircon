@@ -201,11 +201,9 @@
                   range minimal
                   @update:model-value="onDateRangeChange"
                 />
-                <q-date
+                <MonthRangePicker
                   v-else-if="periodType === 'MONTHLY'"
                   v-model="monthRangeModel"
-                  range minimal emit-value
-                  default-view="Months"
                   @update:model-value="onMonthRangeChange"
                 />
               </div>
@@ -320,6 +318,7 @@ import { useDeviceStore } from 'src/stores/deviceStore';
 import { useAuthStore } from 'src/stores/authStore';
 import ProfileMenu from 'src/components/ProfileMenu.vue';
 import BillCalculatorModal from 'src/components/BillCalculatorModal.vue';
+import MonthRangePicker from 'src/components/MonthRangePicker.vue';
 
 const router = useRouter();
 const $q = useQuasar();
@@ -347,7 +346,7 @@ const periodOptions = [
   { label: 'Monthly', value: 'MONTHLY' }
 ];
 const dateRangeModel = ref({ from: getDefaultStartDate(true), to: getDefaultEndDate(true) });
-const monthRangeModel = ref({ from: getCurrentMonth(), to: getCurrentMonth() });
+const monthRangeModel = ref({ from: new Date(new Date().getFullYear(), new Date().getMonth(), 1), to: new Date(new Date().getFullYear(), new Date().getMonth(), 1) });
 const dateRange = ref({ startDate: getDefaultStartDate(), endDate: getDefaultEndDate() });
 
 const showBillCalculator = ref(false);
@@ -360,7 +359,8 @@ const displayDateRange = computed(() => {
   if (periodType.value === 'DAILY' && dateRangeModel.value?.from && dateRangeModel.value?.to) {
     return `${dateRangeModel.value.from} – ${dateRangeModel.value.to}`;
   } else if (periodType.value === 'MONTHLY' && monthRangeModel.value?.from && monthRangeModel.value?.to) {
-    return `${monthRangeModel.value.from} – ${monthRangeModel.value.to}`;
+    const fmt = (d) => `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}`;
+    return `${fmt(monthRangeModel.value.from)} – ${fmt(monthRangeModel.value.to)}`;
   }
   return '';
 });
@@ -391,18 +391,14 @@ function formatDateForDisplay(d) {
   return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
 }
 function parseDisplayDate(s) { return s.replace(/\//g, ''); }
-function getCurrentMonth() {
-  const d = new Date();
-  return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}`;
-}
-
 const onPeriodTypeChange = (type) => {
   if (type === 'DAILY') {
     dateRangeModel.value = { from: getDefaultStartDate(true), to: getDefaultEndDate(true) };
     dateRange.value = { startDate: getDefaultStartDate(), endDate: getDefaultEndDate() };
   } else {
-    monthRangeModel.value = { from: getCurrentMonth(), to: getCurrentMonth() };
-    const [y, m] = monthRangeModel.value.from.split('/');
+    const now = new Date();
+    monthRangeModel.value = { from: new Date(now.getFullYear(), now.getMonth(), 1), to: new Date(now.getFullYear(), now.getMonth(), 1) };
+    const y = now.getFullYear(), m = String(now.getMonth()+1).padStart(2,'0');
     dateRange.value = { startDate: `${y}${m}`, endDate: `${y}${m}` };
   }
   // Save to store
@@ -440,10 +436,9 @@ const onDateRangeChange = (v) => {
 
 const onMonthRangeChange = (v) => {
   if (v?.from && v?.to) {
-    const [yf, mf] = v.from.split('/');
-    const [yt, mt] = v.to.split('/');
+    const yf = v.from.getFullYear(), mf = String(v.from.getMonth()+1).padStart(2,'0');
+    const yt = v.to.getFullYear(), mt = String(v.to.getMonth()+1).padStart(2,'0');
     dateRange.value = { startDate: `${yf}${mf}`, endDate: `${yt}${mt}` };
-    // Save to store
     deviceStore.setDateRange(dateRange.value, periodType.value);
     fetchEnergyData();
   }

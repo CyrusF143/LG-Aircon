@@ -27,14 +27,7 @@
       <q-card class="bg-primary text-white">
         <q-card-section>
           <div class="row items-center">
-            <q-btn
-              flat
-              dense
-              round
-              icon="arrow_back"
-              @click="goBack"
-              class="q-mr-md"
-            />
+            <q-btn flat dense round icon="arrow_back" @click="goBack" class="q-mr-md" />
             <div>
               <div class="text-h5">
                 <q-icon name="devices" size="sm" class="q-mr-sm" />
@@ -45,40 +38,18 @@
             <q-space />
 
             <!-- NEW: AI Insights Button -->
-            <q-btn
-              flat
-              round
-              icon="psychology"
-              @click="goToAIInsights"
-              class="pulse-button"
-            >
+            <q-btn flat round icon="psychology" @click="goToAIInsights" class="pulse-button">
               <q-tooltip>AI-Powered Insights</q-tooltip>
               <q-badge color="purple" floating>AI</q-badge>
             </q-btn>
 
-            <q-btn
-              flat
-              round
-              icon="history"
-              @click="router.push({ name: 'bill-history' })"
-            >
+            <q-btn flat round icon="history" @click="router.push({ name: 'bill-history' })">
               <q-tooltip>Bill History</q-tooltip>
             </q-btn>
-            <q-btn
-              flat
-              round
-              icon="attach_money"
-              @click="showBillCalculator = true"
-            >
+            <q-btn flat round icon="attach_money" @click="showBillCalculator = true">
               <q-tooltip>Calculate Electricity Bill</q-tooltip>
             </q-btn>
-            <q-btn
-              flat
-              round
-              icon="refresh"
-              @click="refreshAll"
-              :loading="loading"
-            >
+            <q-btn flat round icon="refresh" @click="refreshAll" :loading="loading">
               <q-tooltip>Refresh All Data</q-tooltip>
             </q-btn>
             <ProfileMenu />
@@ -87,37 +58,38 @@
       </q-card>
 
       <!-- Electricity Bill Calculator Modal -->
-      <BillCalculatorModal
-        v-model="showBillCalculator"
-        :energy-stats="energyStats"
-        :display-date-range="displayDateRange"
-      />
+      <BillCalculatorModal v-model="showBillCalculator" :energy-stats="energyStats"
+        :display-date-range="displayDateRange" />
 
       <!-- Device Status Cards -->
       <div class="row q-col-gutter-sm q-mb-md" v-if="deviceStatus">
         <div class="col-12 col-sm-6 col-md-3">
-          <q-card flat bordered class="stat-card">
+          <q-card class="stat-card-modern stat-card">
             <q-card-section class="q-pa-sm">
               <div class="text-caption text-grey-7 q-mb-xs">Current Temperature</div>
               <div class="row items-center no-wrap">
                 <div class="col">
                   <div class="text-h5 text-primary text-weight-bold">
-                    {{ deviceStatus.temperature?.currentTemperature || '--' }}°{{ deviceStatus.temperature?.unit || 'C' }}
+                    {{ deviceStatus.temperature?.currentTemperature || '--' }}°{{ deviceStatus.temperature?.unit || 'C'
+                    }}
                   </div>
-                  <div class="text-caption text-grey-6">Target: {{ deviceStatus.temperature?.targetTemperature || '--' }}°</div>
+                  <div class="text-caption text-grey-6">Target: {{ deviceStatus.temperature?.targetTemperature || '--'
+                  }}°</div>
                 </div>
-                <div class="col-auto"><q-icon name="thermostat" size="32px" color="primary" style="opacity: 0.3" /></div>
+                <div class="col-auto"><q-icon name="thermostat" size="32px" color="primary" style="opacity: 0.3" />
+                </div>
               </div>
             </q-card-section>
           </q-card>
         </div>
         <div class="col-12 col-sm-6 col-md-3">
-          <q-card flat bordered class="stat-card">
+          <q-card class="stat-card-modern stat-card">
             <q-card-section class="q-pa-sm">
               <div class="text-caption text-grey-7 q-mb-xs">Operation Mode</div>
               <div class="row items-center no-wrap">
                 <div class="col">
-                  <div class="text-h5 text-positive text-weight-bold">{{ deviceStatus.airConJobMode?.currentJobMode || 'OFF' }}</div>
+                  <div class="text-h5 text-positive text-weight-bold">{{ deviceStatus.airConJobMode?.currentJobMode ||
+                    'OFF' }}</div>
                   <div class="text-caption text-grey-6">{{ deviceStatus.runState?.currentState || 'STANDBY' }}</div>
                 </div>
                 <div class="col-auto"><q-icon name="ac_unit" size="32px" color="positive" style="opacity: 0.3" /></div>
@@ -126,12 +98,13 @@
           </q-card>
         </div>
         <div class="col-12 col-sm-6 col-md-3">
-          <q-card flat bordered class="stat-card">
+          <q-card class="stat-card-modern stat-card">
             <q-card-section class="q-pa-sm">
               <div class="text-caption text-grey-7 q-mb-xs">Fan Speed</div>
               <div class="row items-center no-wrap">
                 <div class="col">
-                  <div class="text-h5 text-info text-weight-bold">{{ deviceStatus.airFlow?.windStrength || 'AUTO' }}</div>
+                  <div class="text-h5 text-info text-weight-bold">{{ deviceStatus.airFlow?.windStrength || 'AUTO' }}
+                  </div>
                   <div class="text-caption text-grey-6">Step: {{ deviceStatus.airFlow?.windStep || '0' }}</div>
                 </div>
                 <div class="col-auto"><q-icon name="air" size="32px" color="info" style="opacity: 0.3" /></div>
@@ -140,18 +113,21 @@
           </q-card>
         </div>
         <div class="col-12 col-sm-6 col-md-3">
-          <q-card flat bordered class="stat-card">
+          <q-card class="stat-card-modern stat-card">
             <q-card-section class="q-pa-sm">
               <div class="text-caption text-grey-7 q-mb-xs">Power Status</div>
               <div class="row items-center no-wrap">
                 <div class="col">
-                  <div class="text-h6 text-weight-bold" :class="deviceStatus.operation?.airConOperationMode === 'POWER_ON' ? 'text-positive' : 'text-grey'">
+                  <div class="text-h6 text-weight-bold"
+                    :class="deviceStatus.operation?.airConOperationMode === 'POWER_ON' ? 'text-positive' : 'text-grey'">
                     {{ deviceStatus.operation?.airConOperationMode?.replace('_', ' ') || 'UNKNOWN' }}
                   </div>
                   <div class="text-caption text-grey-6">Display: {{ deviceStatus.display?.light ? 'ON' : 'OFF' }}</div>
                 </div>
                 <div class="col-auto">
-                  <q-icon name="power_settings_new" size="32px" :color="deviceStatus.operation?.airConOperationMode === 'POWER_ON' ? 'positive' : 'grey'" style="opacity: 0.3" />
+                  <q-icon name="power_settings_new" size="32px"
+                    :color="deviceStatus.operation?.airConOperationMode === 'POWER_ON' ? 'positive' : 'grey'"
+                    style="opacity: 0.3" />
                 </div>
               </div>
             </q-card-section>
@@ -175,9 +151,41 @@
       <!-- Energy Data Section -->
       <q-card>
         <q-card-section>
-          <div class="text-h6 q-mb-md">
-            <q-icon name="bolt" color="amber" class="q-mr-sm" />
-            Energy Consumption
+          <div class="row q-col-gutter-md items-center q-mb-md">
+            <div class="col-12 col-md-4">
+              <div class="text-h6">
+                <q-icon name="bolt" color="amber" class="q-mr-sm" />
+                Energy Consumption
+              </div>
+            </div>
+            <div class="col-12 col-md-8" v-if="energyStats">
+              <div class="row q-col-gutter-sm">
+                <div class="col-6 col-sm-3">
+                  <q-card class="stat-card-modern text-center q-pa-sm">
+                    <div class="text-h6 text-primary">{{ energyStats.total }}</div>
+                    <div class="text-caption">Total</div>
+                  </q-card>
+                </div>
+                <div class="col-6 col-sm-3">
+                  <q-card class="stat-card-modern text-center q-pa-sm">
+                    <div class="text-h6 text-positive">{{ energyStats.average }}</div>
+                    <div class="text-caption">Avg</div>
+                  </q-card>
+                </div>
+                <div class="col-6 col-sm-3">
+                  <q-card class="stat-card-modern text-center q-pa-sm">
+                    <div class="text-h6 text-purple">{{ energyStats.daysActive }}</div>
+                    <div class="text-caption">Active</div>
+                  </q-card>
+                </div>
+                <div class="col-6 col-sm-3">
+                  <q-card class="stat-card-modern text-center q-pa-sm">
+                    <div class="text-h6 text-negative">{{ energyStats.maxDayKwh }}</div>
+                    <div class="text-caption">Peak</div>
+                  </q-card>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div class="row q-col-gutter-md items-start">
@@ -185,108 +193,58 @@
             <div class="col-12 col-md-4" style="align-self: flex-start;">
               <div class="text-subtitle2 q-mb-sm">Select Date Range</div>
               <div ref="calendarWrapRef" style="display: inline-block;">
-                <q-select
-                  v-model="periodType"
-                  :options="periodOptions"
-                  outlined dense emit-value map-options
-                  behavior="menu"
-                  :style="{ width: calendarWidth }"
-                  class="q-mb-sm"
-                  @update:model-value="onPeriodTypeChange"
-                >
+                <q-select v-model="periodType" :options="periodOptions" outlined dense emit-value map-options
+                  behavior="menu" :style="{ width: calendarWidth }" class="q-mb-sm"
+                  @update:model-value="onPeriodTypeChange">
                   <template v-slot:prepend><q-icon name="event" /></template>
                 </q-select>
-                <q-date
-                  v-if="periodType === 'DAILY'"
-                  v-model="dateRangeModel"
-                  range minimal
-                  @update:model-value="onDateRangeChange"
-                />
-                <MonthRangePicker
-                  v-else-if="periodType === 'MONTHLY'"
-                  v-model="monthRangeModel"
-                  @update:model-value="onMonthRangeChange"
-                />
+                <q-date v-if="periodType === 'DAILY'" v-model="dateRangeModel" range minimal
+                  @update:model-value="onDateRangeChange" />
+                <MonthRangePicker v-else-if="periodType === 'MONTHLY'" v-model="monthRangeModel"
+                  @update:model-value="onMonthRangeChange" />
               </div>
             </div>
 
-            <!-- Energy Statistics and Data -->
+            <!-- Energy list/chart -->
             <div class="col-12 col-md-8">
-              <div v-if="energyStats" class="row q-col-gutter-sm q-mb-md">
-                <div class="col-6 col-sm-3">
-                  <q-card flat bordered>
-                    <q-card-section class="text-center q-pa-sm">
-                      <div class="text-h5 text-primary text-weight-bold">{{ energyStats.total }}</div>
-                      <div class="text-caption text-grey-7">Total kWh</div>
-                    </q-card-section>
-                  </q-card>
-                </div>
-                <div class="col-6 col-sm-3">
-                  <q-card flat bordered>
-                    <q-card-section class="text-center q-pa-sm">
-                      <div class="text-h5 text-positive text-weight-bold">{{ energyStats.average }}</div>
-                      <div class="text-caption text-grey-7">Avg kWh/day</div>
-                    </q-card-section>
-                  </q-card>
-                </div>
-                <div class="col-6 col-sm-3">
-                  <q-card flat bordered>
-                    <q-card-section class="text-center q-pa-sm">
-                      <div class="text-h5 text-purple text-weight-bold">{{ energyStats.daysActive }}</div>
-                      <div class="text-caption text-grey-7">Days Active</div>
-                    </q-card-section>
-                  </q-card>
-                </div>
-                <div class="col-6 col-sm-3">
-                  <q-card flat bordered>
-                    <q-card-section class="text-center q-pa-sm">
-                      <div class="text-h5 text-negative text-weight-bold">{{ energyStats.maxDayKwh }}</div>
-                      <div class="text-caption text-grey-7">Peak Day</div>
-                    </q-card-section>
-                  </q-card>
-                </div>
-              </div>
-
               <div v-if="energyData.length > 0">
                 <div class="row items-center justify-between q-mb-sm">
-                  <div class="text-subtitle2">Daily Energy Usage (kWh)</div>
-                  <q-btn-toggle
-                    v-model="viewMode"
-                    toggle-color="primary"
-                    :options="[
-                      {label: 'List', value: 'list', icon: 'list'},
-                      {label: 'Chart', value: 'chart', icon: 'bar_chart'}
-                    ]"
-                    size="sm" dense unelevated
-                  />
+                  <div class="text-subtitle2 text-grey-7">Energy Usage</div>
+                  <q-btn-toggle v-model="viewMode" toggle-color="primary" :options="[
+                    { label: 'Chart', value: 'chart' },
+                    { label: 'List', value: 'list' }
+                  ]" size="sm" dense unelevated />
                 </div>
 
                 <!-- List View -->
-                <div v-if="viewMode === 'list'" style="max-height: 280px; overflow-y: auto;">
-                  <q-list bordered separator dense>
-                    <q-item v-for="data in energyData" :key="data.fullDate">
-                      <q-item-section><q-item-label>{{ data.date }}</q-item-label></q-item-section>
-                      <q-item-section side>
-                        <q-badge :color="data.energy > 0 ? 'positive' : 'grey'" :label="data.energyKwh + ' kWh'" />
-                      </q-item-section>
-                    </q-item>
-                  </q-list>
+                <div v-if="viewMode === 'list'" style="max-height: 300px; overflow-y: auto;">
+                  <div v-for="data in energyData" :key="data.fullDate" class="energy-list-item">
+                    <div class="row items-center justify-between q-px-xs q-pt-xs">
+                      <span class="text-body2">{{ data.date }}</span>
+                      <q-badge :color="data.energy > 0 ? 'positive' : 'grey'" :label="data.energyKwh + ' kWh'" />
+                    </div>
+                    <q-linear-progress :value="maxEnergy > 0 ? (data.energy / 1000) / maxEnergy : 0" color="primary"
+                      track-color="grey-3" size="3px" class="q-mt-xs" />
+                  </div>
                 </div>
 
                 <!-- Chart View -->
                 <div v-else>
                   <div class="line-chart-container">
                     <svg class="line-chart" viewBox="0 0 600 220" preserveAspectRatio="none">
-                      <line v-for="i in 5" :key="'grid-' + i" :x1="50" :y1="i * 40" :x2="580" :y2="i * 40" stroke="#e0e0e0" stroke-width="1" />
-                      <text
-                        v-for="(data, index) in energyData" :key="'label-' + index"
-                        :x="getXPosition(index)" y="215"
-                        text-anchor="middle" font-size="10" fill="#666"
-                      >{{ index % labelInterval === 0 ? data.date : '' }}</text>
-                      <text v-for="i in 6" :key="'ylabel-' + i" x="45" :y="200 - (i - 1) * 40 + 5" text-anchor="end" font-size="10" fill="#666">{{ ((maxEnergy / 5) * (i - 1)).toFixed(1) }}</text>
-                      <polyline :points="linePoints" fill="none" stroke="#1976d2" stroke-width="2" stroke-linejoin="round" />
+                      <line v-for="i in 5" :key="'grid-' + i" :x1="50" :y1="i * 40" :x2="580" :y2="i * 40"
+                        stroke="#e0e0e0" stroke-width="1" />
+                      <text v-for="(data, index) in energyData" :key="'label-' + index" :x="getXPosition(index)" y="215"
+                        text-anchor="middle" font-size="10" fill="#666">{{ index % labelInterval === 0 ? data.date : ''
+                        }}</text>
+                      <text v-for="i in 6" :key="'ylabel-' + i" x="45" :y="200 - (i - 1) * 40 + 5" text-anchor="end"
+                        font-size="10" fill="#666">{{ ((maxEnergy / 5) * (i - 1)).toFixed(1) }}</text>
+                      <polyline :points="linePoints" fill="none" stroke="#1976d2" stroke-width="2"
+                        stroke-linejoin="round" />
                       <polygon :points="areaPoints" fill="rgba(25, 118, 210, 0.1)" />
-                      <circle v-for="(data, index) in energyData" :key="'point-' + index" :cx="getXPosition(index)" :cy="getYPosition(data.energy)" r="4" :fill="data.energy > 0 ? '#1976d2' : '#c0c0c0'" stroke="white" stroke-width="2">
+                      <circle v-for="(data, index) in energyData" :key="'point-' + index" :cx="getXPosition(index)"
+                        :cy="getYPosition(data.energy)" r="4" :fill="data.energy > 0 ? '#1976d2' : '#c0c0c0'"
+                        stroke="white" stroke-width="2">
                         <title>{{ data.date }}: {{ data.energyKwh }} kWh</title>
                       </circle>
                     </svg>
@@ -360,7 +318,7 @@ const displayDateRange = computed(() => {
   if (periodType.value === 'DAILY' && dateRangeModel.value?.from && dateRangeModel.value?.to) {
     return `${dateRangeModel.value.from} – ${dateRangeModel.value.to}`;
   } else if (periodType.value === 'MONTHLY' && monthRangeModel.value?.from && monthRangeModel.value?.to) {
-    const fmt = (d) => `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}`;
+    const fmt = (d) => `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}`;
     return `${fmt(monthRangeModel.value.from)} – ${fmt(monthRangeModel.value.to)}`;
   }
   return '';
@@ -386,10 +344,10 @@ function getDefaultEndDate(forDisplay = false) {
   return forDisplay ? formatDateForDisplay(d) : formatDateForAPI(d);
 }
 function formatDateForAPI(d) {
-  return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+  return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
 }
 function formatDateForDisplay(d) {
-  return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
+  return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
 }
 function parseDisplayDate(s) { return s.replace(/\//g, ''); }
 const onPeriodTypeChange = (type) => {
@@ -399,7 +357,7 @@ const onPeriodTypeChange = (type) => {
   } else {
     const now = new Date();
     monthRangeModel.value = { from: new Date(now.getFullYear(), now.getMonth(), 1), to: new Date(now.getFullYear(), now.getMonth(), 1) };
-    const y = now.getFullYear(), m = String(now.getMonth()+1).padStart(2,'0');
+    const y = now.getFullYear(), m = String(now.getMonth() + 1).padStart(2, '0');
     dateRange.value = { startDate: `${y}${m}`, endDate: `${y}${m}` };
   }
   // Save to store
@@ -437,8 +395,8 @@ const onDateRangeChange = (v) => {
 
 const onMonthRangeChange = (v) => {
   if (v?.from && v?.to) {
-    const yf = v.from.getFullYear(), mf = String(v.from.getMonth()+1).padStart(2,'0');
-    const yt = v.to.getFullYear(), mt = String(v.to.getMonth()+1).padStart(2,'0');
+    const yf = v.from.getFullYear(), mf = String(v.from.getMonth() + 1).padStart(2, '0');
+    const yt = v.to.getFullYear(), mt = String(v.to.getMonth() + 1).padStart(2, '0');
     dateRange.value = { startDate: `${yf}${mf}`, endDate: `${yt}${mt}` };
     deviceStore.setDateRange(dateRange.value, periodType.value);
     fetchEnergyData();
@@ -506,8 +464,8 @@ const fetchEnergyData = async () => {
       energyData.value = data.response.result.dataList.map(item => {
         const d = item.usedDate;
         const label = periodType.value === 'DAILY'
-          ? `${d.substring(4,6)}/${d.substring(6,8)}`
-          : `${d.substring(0,4)}/${d.substring(4,6)}`;
+          ? `${d.substring(4, 6)}/${d.substring(6, 8)}`
+          : `${d.substring(0, 4)}/${d.substring(4, 6)}`;
         return { date: label, fullDate: d, energy: item.energyUsage, energyKwh: (item.energyUsage / 1000).toFixed(2) };
       });
       $q.notify({ type: 'positive', message: 'Energy data loaded successfully', icon: 'check_circle' });
@@ -565,24 +523,42 @@ const goToAIInsights = () => {
   width: 90vw;
   max-width: 480px;
 }
+
 .stat-card {
   border-left: 3px solid #1976d2;
   transition: all 0.2s ease;
   height: 100%;
 }
+
 .stat-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
-.line-chart-container { width: 100%; padding: 10px 0; }
-.line-chart { display: block; width: 100%; height: 280px; }
-.line-chart circle:hover { r: 6; cursor: pointer; }
+
+.line-chart-container {
+  width: 100%;
+  padding: 10px 0;
+}
+
+.line-chart {
+  display: block;
+  width: 100%;
+  height: 280px;
+}
+
+.line-chart circle:hover {
+  r: 6;
+  cursor: pointer;
+}
 
 
 @keyframes pulse {
-  0%, 100% {
+
+  0%,
+  100% {
     box-shadow: 0 0 0 0 rgba(156, 39, 176, 0.7);
   }
+
   50% {
     box-shadow: 0 0 0 8px rgba(156, 39, 176, 0);
   }
@@ -590,5 +566,23 @@ const goToAIInsights = () => {
 
 .pulse-button {
   animation: pulse 2s infinite;
+}
+
+.stat-card-modern {
+  border-radius: 12px;
+  background: linear-gradient(145deg, #fff, #f1f5f9);
+}
+
+.energy-list-item {
+  padding-bottom: 8px;
+  margin-bottom: 4px;
+}
+
+:deep(.q-date__view) {
+  min-height: unset;
+}
+
+:deep(.q-date__calendar-days-container) {
+  min-height: unset;
 }
 </style>

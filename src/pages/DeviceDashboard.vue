@@ -24,32 +24,32 @@
       </q-card> -->
 
 
-      <q-card class="bg-primary text-white">
+      <q-card class="bg-primary text-white sticky-header">
         <q-card-section>
-          <div class="row items-center">
-            <q-btn flat dense round icon="arrow_back" @click="goBack" class="q-mr-md" />
-            <div>
-              <div class="text-h5">
-                <q-icon name="devices" size="sm" class="q-mr-sm" />
+          <div class="row items-center no-wrap">
+            <q-btn flat dense round icon="arrow_back" @click="goBack" class="q-mr-sm" />
+            <div class="ellipsis">
+              <div class="text-subtitle1 text-weight-bold ellipsis">
+                <q-icon name="devices" size="xs" class="q-mr-xs" />
                 {{ deviceName }}
               </div>
-              <div class="text-subtitle2">{{ deviceType }}</div>
+              <div class="text-caption">{{ deviceType }}</div>
             </div>
             <q-space />
 
             <!-- NEW: AI Insights Button -->
-            <q-btn flat round icon="psychology" @click="goToAIInsights" class="pulse-button">
+            <q-btn flat round dense icon="psychology" @click="goToAIInsights" class="pulse-button">
               <q-tooltip>AI-Powered Insights</q-tooltip>
               <q-badge color="purple" floating>AI</q-badge>
             </q-btn>
 
-            <q-btn flat round icon="history" @click="router.push({ name: 'bill-history' })">
+            <q-btn flat round dense icon="history" @click="router.push({ name: 'bill-history' })">
               <q-tooltip>Bill History</q-tooltip>
             </q-btn>
-            <q-btn flat round icon="attach_money" @click="showBillCalculator = true">
+            <q-btn flat round dense icon="attach_money" @click="showBillCalculator = true">
               <q-tooltip>Calculate Electricity Bill</q-tooltip>
             </q-btn>
-            <q-btn flat round icon="refresh" @click="refreshAll" :loading="loading">
+            <q-btn flat round dense icon="refresh" @click="refreshAll" :loading="loading">
               <q-tooltip>Refresh All Data</q-tooltip>
             </q-btn>
             <ProfileMenu />
@@ -74,7 +74,7 @@
                     }}
                   </div>
                   <div class="text-caption text-grey-6">Target: {{ deviceStatus.temperature?.targetTemperature || '--'
-                  }}°</div>
+                    }}°</div>
                 </div>
                 <div class="col-auto"><q-icon name="thermostat" size="32px" color="primary" style="opacity: 0.3" />
                 </div>
@@ -566,6 +566,14 @@ const goToAIInsights = () => {
 
 .pulse-button {
   animation: pulse 2s infinite;
+}
+
+.sticky-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  margin: -16px -16px 0 -16px;
+  border-radius: 0 !important;
 }
 
 .stat-card-modern {

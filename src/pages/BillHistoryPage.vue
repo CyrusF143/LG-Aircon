@@ -3,7 +3,7 @@
     <div class="q-gutter-md">
 
       <!-- Header -->
-      <q-card class="bg-primary text-white">
+      <q-card class="bg-primary text-white sticky-header">
         <q-card-section>
           <div class="row items-center">
             <q-btn flat dense round icon="arrow_back" @click="goBack" class="q-mr-md" />

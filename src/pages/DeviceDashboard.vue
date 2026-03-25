@@ -568,14 +568,6 @@ const goToAIInsights = () => {
   animation: pulse 2s infinite;
 }
 
-.sticky-header {
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  margin: -16px -16px 0 -16px;
-  border-radius: 0 !important;
-}
-
 .stat-card-modern {
   border-radius: 12px;
   background: linear-gradient(145deg, #fff, #f1f5f9);

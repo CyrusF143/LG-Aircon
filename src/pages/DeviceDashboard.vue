@@ -189,6 +189,7 @@
                   v-model="periodType"
                   :options="periodOptions"
                   outlined dense emit-value map-options
+                  behavior="menu"
                   :style="{ width: calendarWidth }"
                   class="q-mb-sm"
                   @update:model-value="onPeriodTypeChange"

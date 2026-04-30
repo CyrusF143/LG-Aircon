@@ -1,96 +1,90 @@
 <template>
-  <q-page class="q-pa-md">
-    <div class="q-gutter-md">
-      <!-- Header -->
-      <q-card class="bg-primary text-white">
-        <q-card-section class="row items-center">
-          <div class="col">
-            <div class="text-h4">
-              <q-icon name="bolt" size="sm" class="q-mr-sm" />
-              LG ThinQ Energy Monitor
-            </div>
-            <div class="text-subtitle2">Your connected devices</div>
-          </div>
-          <ProfileMenu />
-        </q-card-section>
-      </q-card>
+  <q-page class="dl-page">
 
-      <!-- Device List -->
-      <q-card v-if="devices.length > 0">
-        <q-card-section>
-          <div class="text-h6 q-mb-md">
-            Your Devices
-            <q-btn
-              flat
-              round
-              dense
-              icon="refresh"
-              @click="fetchDevices"
-              :loading="loading"
-              class="q-ml-sm"
-            />
-          </div>
+    <!-- Header -->
+    <div class="dl-header sticky-header">
+      <div class="dl-header-inner">
+        <div class="dl-header-icon">
+          <q-icon name="bolt" size="24px" color="white" />
+        </div>
+        <div>
+          <div class="dl-header-title">LG ThinQ Energy Monitor</div>
+          <div class="dl-header-sub">Your connected devices</div>
+        </div>
+        <q-space />
+        <ProfileMenu />
+      </div>
+    </div>
 
-          <q-list separator>
-            <q-item
-              v-for="device in devices"
-              :key="device.deviceId"
-              clickable
-              @click="selectDevice(device)"
-            >
-              <q-item-section avatar>
-                <q-avatar color="primary" text-color="white" icon="devices" />
-              </q-item-section>
+    <div class="dl-content">
 
-              <q-item-section>
-                <q-item-label>{{ device.deviceInfo.alias || 'Unnamed Device' }}</q-item-label>
-                <q-item-label caption>
-                  Type: {{ formatDeviceType(device.deviceInfo.deviceType) }}
-                </q-item-label>
-                <q-item-label caption>
-                  Model: {{ device.deviceInfo.modelName }}
-                </q-item-label>
-              </q-item-section>
+      <!-- Loading skeleton -->
+      <div v-if="loading" class="dl-loading">
+        <q-spinner size="40px" color="primary" />
+        <div class="q-mt-sm text-grey-6 text-caption">Fetching devices...</div>
+      </div>
 
-              <q-item-section side>
-                <q-badge
-                  :color="device.deviceInfo.reportable ? 'positive' : 'warning'"
-                  :label="device.deviceInfo.reportable ? 'Active' : 'Inactive'"
-                />
-              </q-item-section>
-            </q-item>
-          </q-list>
-        </q-card-section>
-
-      </q-card>
-
-      <!-- Error Display -->
-      <q-banner v-if="error" class="bg-negative text-white" rounded>
-        <template v-slot:avatar>
-          <q-icon name="error" />
-        </template>
+      <!-- Error banner -->
+      <q-banner v-if="error" class="dl-error-banner" rounded>
+        <template v-slot:avatar><q-icon name="error_outline" color="negative" /></template>
         {{ error }}
         <template v-slot:action>
-          <q-btn flat label="Dismiss" @click="error = null" />
+          <q-btn flat label="Dismiss" color="negative" @click="error = null" />
         </template>
       </q-banner>
 
-      <!-- Empty State -->
-      <q-card v-if="devices.length === 0 && !loading">
-        <q-card-section class="text-center q-pa-lg">
-          <q-icon name="devices_off" size="64px" color="grey-5" />
-          <div class="text-h6 text-grey-7 q-mt-md">No Devices Found</div>
-          <div class="text-caption text-grey-6">
-            Make sure you have devices registered in your LG ThinQ app
+      <!-- Device list -->
+      <div v-if="devices.length > 0">
+        <div class="dl-section-header">
+          <div class="dl-section-title">
+            <q-icon name="devices" size="18px" class="q-mr-xs text-primary" />
+            Your Devices
+            <q-chip dense color="primary" text-color="white" size="sm" class="q-ml-sm">
+              {{ devices.length }}
+            </q-chip>
           </div>
-          <q-btn
-            label="Retry"
-            color="primary"
-            @click="fetchDevices"
-            class="q-mt-md"
-          />
-        </q-card-section>
-      </q-card>
+          <q-btn flat round dense icon="refresh" color="primary" @click="fetchDevices" :loading="loading">
+            <q-tooltip>Refresh devices</q-tooltip>
+          </q-btn>
+        </div>
+
+        <div class="dl-device-grid">
+          <div
+            v-for="device in devices"
+            :key="device.deviceId"
+            class="dl-device-card"
+            @click="selectDevice(device)"
+          >
+            <div class="dl-device-icon-wrap">
+              <q-icon name="air" size="28px" color="white" />
+            </div>
+            <div class="dl-device-info">
+              <div class="dl-device-name">{{ device.deviceInfo.alias || 'Unnamed Device' }}</div>
+              <div class="dl-device-meta">{{ formatDeviceType(device.deviceInfo.deviceType) }}</div>
+              <div class="dl-device-model">{{ device.deviceInfo.modelName }}</div>
+            </div>
+            <div class="dl-device-right">
+              <q-badge
+                :color="device.deviceInfo.reportable ? 'positive' : 'warning'"
+                :label="device.deviceInfo.reportable ? 'Active' : 'Inactive'"
+                class="dl-status-badge"
+              />
+              <q-icon name="chevron_right" size="20px" color="grey-4" class="q-mt-sm" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Empty state -->
+      <div v-else-if="!loading" class="dl-empty">
+        <div class="dl-empty-icon">
+          <q-icon name="devices_off" size="36px" color="blue-4" />
+        </div>
+        <div class="dl-empty-title">No Devices Found</div>
+        <div class="dl-empty-sub">Make sure your devices are registered in the LG ThinQ app</div>
+        <q-btn label="Retry" color="primary" unelevated class="q-mt-lg dl-retry-btn" @click="fetchDevices" icon="refresh" />
+      </div>
+
     </div>
   </q-page>
 </template>
@@ -228,9 +222,183 @@ const selectDevice = (device) => {
 </script>
 
 <style scoped>
-code {
-  font-family: 'Courier New', monospace;
-  border-radius: 4px;
-  padding: 2px 6px;
+.dl-page {
+  background: #f4f6fb;
+  min-height: 100vh;
+}
+
+/* Header */
+.dl-header {
+  background: linear-gradient(135deg, #1565c0 0%, #1976d2 60%, #1e88e5 100%);
+  padding: 0 20px;
+}
+.dl-header-inner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 0;
+}
+.dl-header-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.dl-header-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: white;
+  line-height: 1.2;
+}
+.dl-header-sub {
+  font-size: 12px;
+  color: rgba(255,255,255,0.72);
+}
+
+/* Content */
+.dl-content {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 24px 16px;
+}
+
+/* Loading */
+.dl-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 60px 0;
+}
+
+/* Error */
+.dl-error-banner {
+  border-radius: 12px;
+  margin-bottom: 16px;
+  border: 1px solid #ffcdd2;
+}
+
+/* Section header */
+.dl-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.dl-section-title {
+  display: flex;
+  align-items: center;
+  font-size: 15px;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+/* Device grid */
+.dl-device-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dl-device-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: white;
+  border-radius: 16px;
+  padding: 16px 18px;
+  border: 1.5px solid #e3eaf5;
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+.dl-device-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(25, 118, 210, 0.12);
+  border-color: #90caf9;
+}
+
+.dl-device-icon-wrap {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #1565c0, #1e88e5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.dl-device-info {
+  flex: 1;
+}
+.dl-device-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin-bottom: 3px;
+}
+.dl-device-meta {
+  font-size: 12px;
+  color: #777;
+  margin-bottom: 2px;
+}
+.dl-device-model {
+  font-size: 11px;
+  color: #aaa;
+  font-family: monospace;
+}
+.dl-device-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+.dl-status-badge {
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 6px;
+  padding: 3px 8px;
+}
+
+/* Empty state */
+.dl-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 80px 20px;
+  text-align: center;
+}
+.dl-empty-icon {
+  width: 80px;
+  height: 80px;
+  border-radius: 20px;
+  background: #e3f2fd;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+.dl-empty-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #333;
+  margin-bottom: 6px;
+}
+.dl-empty-sub {
+  font-size: 13px;
+  color: #aaa;
+  max-width: 280px;
+}
+.dl-retry-btn {
+  border-radius: 10px;
+  padding: 8px 24px;
+  font-weight: 600;
+}
+
+@media (max-width: 599px) {
+  .dl-header-title { font-size: 17px; }
+  .dl-device-card { padding: 14px; gap: 12px; }
+  .dl-device-icon-wrap { width: 44px; height: 44px; border-radius: 11px; }
 }
 </style>

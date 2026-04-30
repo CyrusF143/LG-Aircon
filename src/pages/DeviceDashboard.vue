@@ -149,122 +149,138 @@
       </div>
 
       <!-- Energy Data Section -->
-      <q-card>
-        <q-card-section>
-          <div class="row q-col-gutter-md items-center q-mb-md">
-            <div class="col-12 col-md-4">
-              <div class="text-h6">
-                <q-icon name="bolt" color="amber" class="q-mr-sm" />
-                Energy Consumption
-              </div>
+      <div class="energy-section">
+
+        <!-- Section header + stat chips -->
+        <div class="energy-header">
+          <div class="energy-header-left">
+            <div class="energy-header-icon">
+              <q-icon name="bolt" size="22px" color="white" />
             </div>
-            <div class="col-12 col-md-8" v-if="energyStats">
-              <div class="row q-col-gutter-sm">
-                <div class="col-6 col-sm-3">
-                  <q-card class="stat-card-modern text-center q-pa-sm">
-                    <div class="text-h6 text-primary">{{ energyStats.total }}</div>
-                    <div class="text-caption">Total</div>
-                  </q-card>
-                </div>
-                <div class="col-6 col-sm-3">
-                  <q-card class="stat-card-modern text-center q-pa-sm">
-                    <div class="text-h6 text-positive">{{ energyStats.average }}</div>
-                    <div class="text-caption">Avg</div>
-                  </q-card>
-                </div>
-                <div class="col-6 col-sm-3">
-                  <q-card class="stat-card-modern text-center q-pa-sm">
-                    <div class="text-h6 text-purple">{{ energyStats.daysActive }}</div>
-                    <div class="text-caption">Active</div>
-                  </q-card>
-                </div>
-                <div class="col-6 col-sm-3">
-                  <q-card class="stat-card-modern text-center q-pa-sm">
-                    <div class="text-h6 text-negative">{{ energyStats.maxDayKwh }}</div>
-                    <div class="text-caption">Peak</div>
-                  </q-card>
-                </div>
-              </div>
+            <div>
+              <div class="energy-title">Energy Consumption</div>
+              <div class="energy-subtitle">Monitor your AC power usage</div>
             </div>
           </div>
 
-          <div class="row q-col-gutter-md items-start">
-            <!-- Date Range Picker -->
-            <div class="col-12 col-md-4" style="align-self: flex-start;">
-              <div class="text-subtitle2 q-mb-sm">Select Date Range</div>
-              <div ref="calendarWrapRef" style="display: inline-block;">
-                <q-select v-model="periodType" :options="periodOptions" outlined dense emit-value map-options
-                  behavior="menu" :style="{ width: calendarWidth }" class="q-mb-sm"
-                  @update:model-value="onPeriodTypeChange">
-                  <template v-slot:prepend><q-icon name="event" /></template>
-                </q-select>
-                <q-date v-if="periodType === 'DAILY'" v-model="dateRangeModel" range minimal
-                  @update:model-value="onDateRangeChange" />
-                <MonthRangePicker v-else-if="periodType === 'MONTHLY'" v-model="monthRangeModel"
-                  @update:model-value="onMonthRangeChange" />
-              </div>
+          <!-- Stat chips -->
+          <div class="energy-stats" v-if="energyStats">
+            <div class="energy-stat-chip">
+              <div class="energy-stat-value" style="color:#7dd3fc">{{ energyStats.total }}</div>
+              <div class="energy-stat-label">Total kWh</div>
             </div>
-
-            <!-- Energy list/chart -->
-            <div class="col-12 col-md-8">
-              <div v-if="energyData.length > 0">
-                <div class="row items-center justify-between q-mb-sm">
-                  <div class="text-subtitle2 text-grey-7">Energy Usage</div>
-                  <q-btn-toggle v-model="viewMode" toggle-color="primary" :options="[
-                    { label: 'Chart', value: 'chart' },
-                    { label: 'List', value: 'list' }
-                  ]" size="sm" dense unelevated />
-                </div>
-
-                <!-- List View -->
-                <div v-if="viewMode === 'list'" style="max-height: 300px; overflow-y: auto;">
-                  <div v-for="data in energyData" :key="data.fullDate" class="energy-list-item">
-                    <div class="row items-center justify-between q-px-xs q-pt-xs">
-                      <span class="text-body2">{{ data.date }}</span>
-                      <q-badge :color="data.energy > 0 ? 'positive' : 'grey'" :label="data.energyKwh + ' kWh'" />
-                    </div>
-                    <q-linear-progress :value="maxEnergy > 0 ? (data.energy / 1000) / maxEnergy : 0" color="primary"
-                      track-color="grey-3" size="3px" class="q-mt-xs" />
-                  </div>
-                </div>
-
-                <!-- Chart View -->
-                <div v-else>
-                  <div class="line-chart-container">
-                    <svg class="line-chart" viewBox="0 0 600 220" preserveAspectRatio="none">
-                      <line v-for="i in 5" :key="'grid-' + i" :x1="50" :y1="i * 40" :x2="580" :y2="i * 40"
-                        stroke="#e0e0e0" stroke-width="1" />
-                      <text v-for="(data, index) in energyData" :key="'label-' + index" :x="getXPosition(index)" y="215"
-                        text-anchor="middle" font-size="10" fill="#666">{{ index % labelInterval === 0 ? data.date : ''
-                        }}</text>
-                      <text v-for="i in 6" :key="'ylabel-' + i" x="45" :y="200 - (i - 1) * 40 + 5" text-anchor="end"
-                        font-size="10" fill="#666">{{ ((maxEnergy / 5) * (i - 1)).toFixed(1) }}</text>
-                      <polyline :points="linePoints" fill="none" stroke="#1976d2" stroke-width="2"
-                        stroke-linejoin="round" />
-                      <polygon :points="areaPoints" fill="rgba(25, 118, 210, 0.1)" />
-                      <circle v-for="(data, index) in energyData" :key="'point-' + index" :cx="getXPosition(index)"
-                        :cy="getYPosition(data.energy)" r="4" :fill="data.energy > 0 ? '#1976d2' : '#c0c0c0'"
-                        stroke="white" stroke-width="2">
-                        <title>{{ data.date }}: {{ data.energyKwh }} kWh</title>
-                      </circle>
-                    </svg>
-                  </div>
-                </div>
-              </div>
-
-              <div v-else-if="loadingEnergy" class="text-center q-pa-lg">
-                <q-spinner size="50px" color="primary" />
-                <div class="q-mt-md text-grey-7">Loading energy data...</div>
-              </div>
-
-              <div v-else class="text-center q-pa-lg text-grey-7">
-                <q-icon name="analytics" size="64px" color="grey-4" />
-                <div class="q-mt-md">Select a date range to view energy data</div>
-              </div>
+            <div class="energy-stat-divider" />
+            <div class="energy-stat-chip">
+              <div class="energy-stat-value" style="color:#86efac">{{ energyStats.average }}</div>
+              <div class="energy-stat-label">Avg / day</div>
+            </div>
+            <div class="energy-stat-divider" />
+            <div class="energy-stat-chip">
+              <div class="energy-stat-value" style="color:#d8b4fe">{{ energyStats.daysActive }}</div>
+              <div class="energy-stat-label">Days Active</div>
+            </div>
+            <div class="energy-stat-divider" />
+            <div class="energy-stat-chip">
+              <div class="energy-stat-value" style="color:#fca5a5">{{ energyStats.maxDayKwh }}</div>
+              <div class="energy-stat-label">Peak kWh</div>
             </div>
           </div>
-        </q-card-section>
-      </q-card>
+        </div>
+
+        <!-- Body: calendar + chart/list -->
+        <div class="energy-body">
+
+          <!-- Left: Date Range Picker -->
+          <div class="energy-calendar-panel">
+            <div class="energy-panel-label">
+              <q-icon name="date_range" size="15px" class="q-mr-xs text-primary" />
+              Select Date Range
+            </div>
+            <div ref="calendarWrapRef">
+              <q-select v-model="periodType" :options="periodOptions" outlined dense emit-value map-options
+                behavior="menu" :style="{ width: calendarWidth }" class="q-mb-sm"
+                @update:model-value="onPeriodTypeChange">
+                <template v-slot:prepend><q-icon name="event" /></template>
+              </q-select>
+              <q-date v-if="periodType === 'DAILY'" v-model="dateRangeModel" range minimal
+                @update:model-value="onDateRangeChange" />
+              <MonthRangePicker v-else-if="periodType === 'MONTHLY'" v-model="monthRangeModel"
+                @update:model-value="onMonthRangeChange" />
+            </div>
+          </div>
+
+          <!-- Right: Chart / List -->
+          <div class="energy-chart-panel">
+
+            <div v-if="energyData.length > 0">
+              <!-- Toolbar -->
+              <div class="energy-chart-toolbar">
+                <div class="energy-usage-label">
+                  <q-icon name="electric_bolt" size="16px" class="q-mr-xs text-amber" />
+                  Energy Usage
+                </div>
+                <q-btn-toggle v-model="viewMode" toggle-color="primary" :options="[
+                  { label: 'Chart', value: 'chart' },
+                  { label: 'List', value: 'list' }
+                ]" size="sm" dense unelevated />
+              </div>
+
+              <!-- List View -->
+              <div v-if="viewMode === 'list'" class="energy-list-scroll">
+                <div v-for="data in energyData" :key="data.fullDate" class="energy-list-row">
+                  <span class="energy-list-date">{{ data.date }}</span>
+                  <div class="energy-list-bar-wrap">
+                    <q-linear-progress
+                      :value="maxEnergy > 0 ? (data.energy / 1000) / maxEnergy : 0"
+                      color="primary" track-color="blue-1" size="8px"
+                      rounded class="energy-list-bar" />
+                  </div>
+                  <q-badge
+                    :color="data.energy > 0 ? 'positive' : 'grey-5'"
+                    :label="data.energyKwh + ' kWh'"
+                    class="energy-list-badge"
+                  />
+                </div>
+              </div>
+
+              <!-- Chart View -->
+              <div v-else class="line-chart-container">
+                <svg class="line-chart" viewBox="0 0 600 220" preserveAspectRatio="none">
+                  <line v-for="i in 5" :key="'grid-' + i" :x1="50" :y1="i * 40" :x2="580" :y2="i * 40"
+                    stroke="#e8eef5" stroke-width="1" />
+                  <text v-for="(data, index) in energyData" :key="'label-' + index" :x="getXPosition(index)" y="215"
+                    text-anchor="middle" font-size="10" fill="#999">{{ index % labelInterval === 0 ? data.date : '' }}</text>
+                  <text v-for="i in 6" :key="'ylabel-' + i" x="45" :y="200 - (i - 1) * 40 + 5" text-anchor="end"
+                    font-size="10" fill="#999">{{ ((maxEnergy / 5) * (i - 1)).toFixed(1) }}</text>
+                  <polyline :points="linePoints" fill="none" stroke="#1976d2" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" />
+                  <polygon :points="areaPoints" fill="rgba(25, 118, 210, 0.08)" />
+                  <circle v-for="(data, index) in energyData" :key="'point-' + index"
+                    :cx="getXPosition(index)" :cy="getYPosition(data.energy)"
+                    r="4" :fill="data.energy > 0 ? '#1976d2' : '#ccc'" stroke="white" stroke-width="2">
+                    <title>{{ data.date }}: {{ data.energyKwh }} kWh</title>
+                  </circle>
+                </svg>
+              </div>
+            </div>
+
+            <!-- Loading -->
+            <div v-else-if="loadingEnergy" class="energy-state-center">
+              <q-spinner size="40px" color="primary" />
+              <div class="q-mt-sm text-grey-6 text-caption">Loading energy data...</div>
+            </div>
+
+            <!-- Empty -->
+            <div v-else class="energy-state-center">
+              <div class="energy-empty-icon">
+                <q-icon name="analytics" size="32px" color="blue-3" />
+              </div>
+              <div class="energy-empty-title">No data yet</div>
+              <div class="energy-empty-sub">Select a date range to view energy usage</div>
+            </div>
+
+          </div>
+        </div>
+      </div>
     </div>
   </q-page>
 </template>
@@ -573,9 +589,244 @@ const goToAIInsights = () => {
   background: linear-gradient(145deg, #fff, #f1f5f9);
 }
 
-.energy-list-item {
-  padding-bottom: 8px;
+/* ── Energy Section ── */
+.energy-section {
+  border-radius: 16px;
+  background: white;
+  border: 1px solid #e8eef5;
+  overflow: hidden;
+  box-shadow: 0 2px 12px rgba(25, 118, 210, 0.06);
+}
+
+/* Header */
+.energy-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 16px 18px;
+  background: linear-gradient(135deg, #1565c0 0%, #1976d2 60%, #1e88e5 100%);
+}
+.energy-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.energy-header-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 11px;
+  background: rgba(255,255,255,0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.energy-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: white;
+  line-height: 1.2;
+}
+.energy-subtitle {
+  font-size: 12px;
+  color: rgba(255,255,255,0.7);
+}
+
+/* Stat chips in header */
+.energy-stats {
+  display: flex;
+  align-items: center;
+  background: rgba(255,255,255,0.12);
+  border-radius: 12px;
+  padding: 8px 16px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.energy-stat-chip {
+  text-align: center;
+}
+.energy-stat-value {
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+.energy-stat-label {
+  font-size: 10px;
+  color: rgba(255,255,255,0.75);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-top: 2px;
+}
+.energy-stat-divider {
+  width: 1px;
+  height: 30px;
+  background: rgba(255,255,255,0.25);
+}
+
+/* Body */
+.energy-body {
+  display: flex;
+  gap: 0;
+}
+
+/* Calendar panel */
+.energy-calendar-panel {
+  width: 290px;
+  flex-shrink: 0;
+  border-right: 1px solid #e8eef5;
+  padding: 18px 16px;
+  background: #fafcff;
+}
+
+/* ── Mobile responsiveness ── */
+@media (max-width: 599px) {
+  .energy-header {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 14px 16px;
+  }
+
+  .energy-stats {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+
+  .energy-stat-divider {
+    display: none;
+  }
+
+  .energy-stat-chip {
+    background: rgba(255,255,255,0.1);
+    border-radius: 8px;
+    padding: 6px 8px;
+  }
+
+  .energy-stat-value {
+    font-size: 16px;
+  }
+
+  .energy-body {
+    flex-direction: column;
+  }
+
+  .energy-calendar-panel {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid #e8eef5;
+    padding: 14px 12px;
+  }
+
+  .energy-chart-panel {
+    padding: 14px 12px;
+    min-height: 260px;
+  }
+
+  .energy-list-scroll {
+    max-height: 260px;
+  }
+}
+.energy-panel-label {
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: #555;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 12px;
+}
+
+/* Chart panel */
+.energy-chart-panel {
+  flex: 1;
+  padding: 18px 20px;
+  min-height: 320px;
+  display: flex;
+  flex-direction: column;
+}
+.energy-chart-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.energy-usage-label {
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: #444;
+}
+
+/* List view */
+.energy-list-scroll {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 320px;
+  padding-right: 4px;
+}
+.energy-list-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 4px;
+  border-bottom: 1px solid #f0f4f8;
+}
+.energy-list-row:last-child { border-bottom: none; }
+.energy-list-date {
+  font-size: 13px;
+  color: #555;
+  width: 46px;
+  flex-shrink: 0;
+}
+.energy-list-bar-wrap {
+  flex: 1;
+}
+.energy-list-bar {
+  border-radius: 99px;
+}
+.energy-list-badge {
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+/* Empty / loading states */
+.energy-state-center {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  text-align: center;
+}
+.energy-empty-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  background: #e3f2fd;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+.energy-empty-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #444;
   margin-bottom: 4px;
+}
+.energy-empty-sub {
+  font-size: 12px;
+  color: #aaa;
 }
 
 :deep(.q-date__view) {

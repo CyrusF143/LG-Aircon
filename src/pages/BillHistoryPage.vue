@@ -1,71 +1,77 @@
 <template>
-  <q-page class="q-pa-md">
-    <div class="q-gutter-md">
+  <q-page class="bh-page">
 
       <!-- Header -->
-      <q-card class="bg-primary text-white sticky-header">
-        <q-card-section>
-          <div class="row items-center">
-            <q-btn flat dense round icon="arrow_back" @click="goBack" class="q-mr-md" />
-            <div>
-              <div class="text-h5">
-                <q-icon name="receipt_long" size="sm" class="q-mr-sm" />
-                Bill History
-              </div>
-              <div class="text-subtitle2">Saved electricity bill records</div>
+      <div class="bh-topbar sticky-header">
+        <div class="bh-topbar-inner">
+          <q-btn flat dense round icon="arrow_back" color="white" @click="goBack" class="q-mr-sm" />
+          <div class="bh-topbar-icon">
+            <q-icon name="receipt_long" size="22px" color="white" />
+          </div>
+          <div>
+            <div class="bh-topbar-title">Bill History</div>
+            <div class="bh-topbar-sub">Saved electricity bill records</div>
+          </div>
+          <q-space />
+          <q-btn
+            v-if="bills.length > 0"
+            flat dense round icon="download" color="white"
+            @click="downloadCSV"
+          >
+            <q-tooltip>Download as CSV</q-tooltip>
+          </q-btn>
+          <ProfileMenu />
+        </div>
+      </div>
+
+      <div class="bh-content">
+
+        <!-- Loading -->
+        <div v-if="loading" class="text-center q-pa-xl">
+          <q-spinner size="50px" color="primary" />
+          <div class="q-mt-md text-grey-6">Loading bill history...</div>
+        </div>
+
+        <!-- Empty State -->
+        <div v-else-if="bills.length === 0" class="bh-empty">
+          <div class="bh-empty-icon"><q-icon name="receipt_long" size="48px" color="blue-3" /></div>
+          <div class="bh-empty-title">No saved bills yet</div>
+          <div class="bh-empty-sub">Bills saved from the calculator will appear here</div>
+        </div>
+
+        <template v-else>
+          <!-- Total Summary -->
+          <div class="bh-summary-card">
+            <div class="bh-summary-left">
+              <div class="bh-summary-label">Total AC Electricity Cost</div>
+              <div class="bh-summary-sub">Across all {{ bills.length }} record{{ bills.length > 1 ? 's' : '' }}</div>
             </div>
-            <q-space />
-            <q-btn
-              v-if="bills.length > 0"
-              flat dense round icon="download"
-              @click="downloadCSV"
-              class="q-mr-sm"
-            >
-              <q-tooltip>Download as CSV</q-tooltip>
-            </q-btn>
-            <ProfileMenu />
+            <div class="bh-summary-amount">₱{{ totalBill }}</div>
           </div>
-        </q-card-section>
-      </q-card>
 
-      <!-- Loading -->
-      <div v-if="loading" class="text-center q-pa-xl">
-        <q-spinner size="50px" color="primary" />
-        <div class="q-mt-md text-grey-7">Loading bill history...</div>
-      </div>
-
-      <!-- Empty State -->
-      <div v-else-if="bills.length === 0" class="text-center q-pa-xl text-grey-7">
-        <q-icon name="receipt_long" size="64px" color="grey-4" />
-        <div class="q-mt-md text-h6">No saved bills yet</div>
-        <div class="text-caption">Bills saved from the calculator will appear here</div>
-      </div>
-
-      <!-- Total Summary -->
-      <q-card v-else flat bordered class="bg-green-1">
-        <q-card-section class="q-pa-sm text-center">
-          <div class="text-caption text-grey-7">Total AC Electricity Cost (All Records)</div>
-          <div class="text-h4 text-positive text-weight-bold">
-            ₱{{ totalBill }}
+          <!-- View Toggle -->
+          <div class="bh-toolbar">
+            <div class="bh-record-count">
+              <q-icon name="folder_open" size="16px" class="q-mr-xs text-grey-6" />
+              <span>{{ bills.length }} record{{ bills.length > 1 ? 's' : '' }}</span>
+            </div>
+            <q-btn-toggle
+              v-model="viewMode"
+              toggle-color="primary"
+              flat
+              :options="[
+                { label: 'List', value: 'list', icon: 'list' },
+                { label: 'Card', value: 'card', icon: 'grid_view' },
+                { label: 'Chart', value: 'chart', icon: 'bar_chart' }
+              ]"
+              size="sm" dense unelevated
+            />
           </div>
-        </q-card-section>
-      </q-card>
-
-      <!-- View Toggle -->
-      <div v-if="bills.length > 0" class="row items-center justify-between">
-        <div class="text-subtitle2 text-grey-7">{{ bills.length }} record{{ bills.length > 1 ? 's' : '' }}</div>
-        <q-btn-toggle
-          v-model="viewMode"
-          toggle-color="primary"
-          :options="[
-            { label: 'List', value: 'list', icon: 'list' },
-            { label: 'Card', value: 'card', icon: 'grid_view' },
-            { label: 'Chart', value: 'chart', icon: 'bar_chart' }
-          ]"
-          size="sm" dense unelevated
-        />
+        </template>
       </div>
 
+      <!-- List / Card / Chart views -->
+      <div class="bh-content">
       <!-- List View -->
       <div v-if="bills.length > 0 && viewMode === 'list'">
         <q-list bordered separator>
@@ -98,61 +104,69 @@
       <div v-if="bills.length > 0 && viewMode === 'card'" class="overflow-hidden">
         <div class="row q-col-gutter-md justify-center">
           <div v-for="bill in bills" :key="bill.id" class="col-12 col-sm-6 col-md-4">
-            <q-card flat bordered class="bill-card">
-              <q-card-section class="bg-blue-1 q-pa-sm">
-                <div class="row items-center">
-                  <q-icon name="date_range" size="xs" color="grey-7" class="q-mr-xs" />
-                  <span class="text-caption text-grey-7">{{ bill.dateRange }}</span>
-                  <q-space />
-                  <span class="text-caption text-grey-5">{{ formatSavedAt(bill.savedAt) }}</span>
-                </div>
-              </q-card-section>
-              <q-card-section class="q-pa-md">
-                <div class="text-center q-mb-md">
-                  <div class="text-caption text-grey-7">AC Electricity Cost</div>
-                  <div class="text-h4 text-positive text-weight-bold">₱{{ bill.calculatedBill?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</div>
-                </div>
-                <q-separator class="q-mb-md" />
-                <div class="row q-col-gutter-sm">
-                  <div class="col-6">
-                    <div class="text-caption text-grey-6">Household Amount Due</div>
-                    <div class="text-body2 text-weight-medium">₱{{ bill.householdAmountDue?.toLocaleString() }}</div>
-                  </div>
-                  <div class="col-6">
-                    <div class="text-caption text-grey-6">Household Total kWh</div>
-                    <div class="text-body2 text-weight-medium">{{ bill.householdTotalKwh?.toLocaleString() }} kWh</div>
-                  </div>
-                  <div class="col-6">
-                    <div class="text-caption text-grey-6">Rate per kWh</div>
-                    <div class="text-body2 text-weight-medium">₱{{ bill.ratePerKwh }}</div>
-                  </div>
-                  <div class="col-6">
-                    <div class="text-caption text-grey-6">Device Total kWh</div>
-                    <div class="text-body2 text-weight-medium">{{ bill.deviceTotalKwh }} kWh</div>
-                  </div>
-                  <div class="col-6">
-                    <div class="text-caption text-grey-6">Avg kWh/day</div>
-                    <div class="text-body2 text-weight-medium">{{ bill.avgKwhPerDay }} kWh</div>
-                  </div>
-                  <div class="col-6">
-                    <div class="text-caption text-grey-6">Days Active</div>
-                    <div class="text-body2 text-weight-medium">{{ bill.daysActive }} days</div>
-                  </div>
-                  <div class="col-12">
-                    <div class="text-caption text-grey-6">Peak Day</div>
-                    <div class="text-body2 text-weight-medium">{{ bill.peakDayKwh }} kWh</div>
+            <div class="bill-card">
+
+              <!-- Card header -->
+              <div class="bc-header">
+                <div>
+                  <div class="bc-title">AC Device Usage Cost</div>
+                  <div class="bc-date">
+                    <q-icon name="date_range" size="13px" class="q-mr-xs" />{{ bill.dateRange }}
                   </div>
                 </div>
-              </q-card-section>
-              <q-card-actions align="right" class="q-pt-none">
-                <q-btn flat round dense icon="image" color="primary" @click="downloadCardImage(bill)" :loading="downloadingId === bill.id">
+                <div class="bc-saved">{{ formatSavedAt(bill.savedAt) }}</div>
+              </div>
+
+              <!-- 2×2 stat chips -->
+              <div class="bc-stat-grid">
+                <div class="bc-chip">
+                  <div class="bc-chip-label">Household Amount Due</div>
+                  <div class="bc-chip-value blue">₱{{ bill.householdAmountDue?.toLocaleString() }}</div>
+                </div>
+                <div class="bc-chip">
+                  <div class="bc-chip-label">Household Total kWh</div>
+                  <div class="bc-chip-value blue">{{ bill.householdTotalKwh?.toLocaleString() }} kWh</div>
+                </div>
+                <div class="bc-chip">
+                  <div class="bc-chip-label">Rate per kWh</div>
+                  <div class="bc-chip-value teal">₱{{ bill.ratePerKwh }}</div>
+                </div>
+                <div class="bc-chip">
+                  <div class="bc-chip-label">Device Total kWh</div>
+                  <div class="bc-chip-value teal">{{ bill.deviceTotalKwh }} kWh</div>
+                </div>
+                <div class="bc-chip">
+                  <div class="bc-chip-label">Avg kWh/day</div>
+                  <div class="bc-chip-value purple">{{ bill.avgKwhPerDay }} kWh</div>
+                </div>
+                <div class="bc-chip">
+                  <div class="bc-chip-label">Days Active</div>
+                  <div class="bc-chip-value purple">{{ bill.daysActive }} days</div>
+                </div>
+                <div class="bc-chip bc-chip--full">
+                  <div class="bc-chip-label">Peak Day</div>
+                  <div class="bc-chip-value orange">{{ bill.peakDayKwh }} kWh</div>
+                </div>
+              </div>
+
+              <!-- Cost section -->
+              <div class="bc-cost-section">
+                <div class="bc-cost-label">YOUR AC ELECTRICITY COST</div>
+                <div class="bc-cost-amount">₱{{ bill.calculatedBill?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</div>
+                <div class="bc-cost-sub">for the selected period</div>
+              </div>
+
+              <!-- Actions -->
+              <div class="bc-actions">
+                <q-btn flat round dense icon="image" color="primary" size="sm" @click="downloadCardImage(bill)" :loading="downloadingId === bill.id">
                   <q-tooltip>Download as image</q-tooltip>
                 </q-btn>
-                <q-btn flat round dense icon="delete" color="negative" @click="confirmDelete(bill)">
+                <q-btn flat round dense icon="delete" color="negative" size="sm" @click="confirmDelete(bill)">
                   <q-tooltip>Delete record</q-tooltip>
                 </q-btn>
-              </q-card-actions>
-            </q-card>
+              </div>
+
+            </div>
           </div>
         </div>
       </div>
@@ -186,7 +200,7 @@
         </q-card>
       </div>
 
-    </div>
+      </div><!-- end bh-content views -->
 
     <!-- Delete Confirm Dialog -->
     <q-dialog v-model="showDeleteDialog">
@@ -262,28 +276,42 @@ const goBack = () => router.back();
 const downloadCardImage = async (bill) => {
   downloadingId.value = bill.id;
   const el = document.createElement('div');
-  el.style.cssText = 'position:fixed;left:-9999px;top:0;width:360px;background:#fff;font-family:Roboto,sans-serif;border:1px solid #ddd;border-left:3px solid #1976d2;border-radius:4px;overflow:hidden';
-  el.innerHTML = `
-    <div style="background:#e3f2fd;padding:10px 12px;display:flex;justify-content:space-between;align-items:center">
-      <span style="font-size:12px;color:#555">📅 ${bill.dateRange}</span>
-      <span style="font-size:11px;color:#aaa">${formatSavedAt(bill.savedAt)}</span>
-    </div>
-    <div style="padding:16px">
-      <div style="text-align:center;margin-bottom:12px">
-        <div style="font-size:11px;color:#888">AC Electricity Cost</div>
-        <div style="font-size:32px;font-weight:700;color:#2e7d32">₱${bill.calculatedBill?.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</div>
-      </div>
-      <hr style="border:none;border-top:1px solid #eee;margin:12px 0"/>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12px">
-        <div><div style="color:#999">Household Amount Due</div><div style="font-weight:500">₱${bill.householdAmountDue?.toLocaleString()}</div></div>
-        <div><div style="color:#999">Household Total kWh</div><div style="font-weight:500">${bill.householdTotalKwh?.toLocaleString()} kWh</div></div>
-        <div><div style="color:#999">Rate per kWh</div><div style="font-weight:500">₱${bill.ratePerKwh}</div></div>
-        <div><div style="color:#999">Device Total kWh</div><div style="font-weight:500">${bill.deviceTotalKwh} kWh</div></div>
-        <div><div style="color:#999">Avg kWh/day</div><div style="font-weight:500">${bill.avgKwhPerDay} kWh</div></div>
-        <div><div style="color:#999">Days Active</div><div style="font-weight:500">${bill.daysActive} days</div></div>
-        <div style="grid-column:span 2"><div style="color:#999">Peak Day</div><div style="font-weight:500">${bill.peakDayKwh} kWh</div></div>
-      </div>
+  el.style.cssText = 'position:fixed;left:-9999px;top:0;width:380px;font-family:Roboto,sans-serif;border-radius:16px;border:1.5px solid #90caf9;background:linear-gradient(145deg,#f0f7ff 0%,#f0fff4 100%);overflow:hidden;padding:18px 18px 0';
+
+  const chip = (label, value, color) => `
+    <div style="background:white;border-radius:10px;padding:9px 11px;border:1px solid #e3eaf5">
+      <div style="font-size:10px;color:#999;font-weight:600;text-transform:uppercase;letter-spacing:0.3px;margin-bottom:3px">${label}</div>
+      <div style="font-size:14px;font-weight:700;color:${color}">${value}</div>
     </div>`;
+
+  el.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px">
+      <div>
+        <div style="font-size:15px;font-weight:700;color:#1a1a1a;margin-bottom:3px">AC Device Usage Cost</div>
+        <div style="font-size:12px;color:#777;display:flex;align-items:center;gap:4px">📅 ${bill.dateRange}</div>
+      </div>
+      <div style="font-size:11px;color:#aaa;text-align:right">${formatSavedAt(bill.savedAt)}</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+      ${chip('Household Amount Due', '₱' + bill.householdAmountDue?.toLocaleString(), '#1565c0')}
+      ${chip('Household Total kWh', bill.householdTotalKwh?.toLocaleString() + ' kWh', '#1565c0')}
+      ${chip('Rate per kWh', '₱' + bill.ratePerKwh, '#00796b')}
+      ${chip('Device Total kWh', bill.deviceTotalKwh + ' kWh', '#00796b')}
+      ${chip('Avg kWh/day', bill.avgKwhPerDay + ' kWh', '#6a1b9a')}
+      ${chip('Days Active', bill.daysActive + ' days', '#6a1b9a')}
+      <div style="grid-column:span 2;background:white;border-radius:10px;padding:9px 11px;border:1px solid #e3eaf5">
+        <div style="font-size:10px;color:#999;font-weight:600;text-transform:uppercase;letter-spacing:0.3px;margin-bottom:3px">Peak Day</div>
+        <div style="font-size:14px;font-weight:700;color:#e65100">${bill.peakDayKwh} kWh</div>
+      </div>
+    </div>
+
+    <div style="background:white;border-radius:12px;border:1px solid #c8e6c9;text-align:center;padding:14px 12px 12px;margin-bottom:18px">
+      <div style="font-size:10px;font-weight:600;color:#999;letter-spacing:0.8px;text-transform:uppercase;margin-bottom:4px">YOUR AC ELECTRICITY COST</div>
+      <div style="font-size:2.4rem;font-weight:800;color:#2e7d32;line-height:1.1;letter-spacing:-1px">₱${bill.calculatedBill?.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</div>
+      <div style="font-size:11px;color:#bbb;margin-top:4px">for the selected period</div>
+    </div>`;
+
   document.body.appendChild(el);
   try {
     const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
@@ -377,15 +405,234 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* Page */
+.bh-page {
+  background: #f4f6fb;
+  min-height: 100vh;
+  padding: 0;
+}
+
+/* Top bar */
+.bh-topbar {
+  background: linear-gradient(135deg, #1565c0 0%, #1976d2 60%, #1e88e5 100%);
+  padding: 0 16px;
+}
+.bh-topbar-inner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 0;
+}
+.bh-topbar-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.bh-topbar-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: white;
+  line-height: 1.2;
+}
+.bh-topbar-sub {
+  font-size: 12px;
+  color: rgba(255,255,255,0.75);
+}
+
+/* Content wrapper */
+.bh-content {
+  padding: 20px 16px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* Summary card */
+.bh-summary-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(135deg, #e8f5e9 0%, #f0f7ff 100%);
+  border: 1.5px solid #a5d6a7;
+  border-radius: 16px;
+  padding: 20px 28px;
+  margin-bottom: 20px;
+}
+.bh-summary-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #555;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+.bh-summary-sub {
+  font-size: 12px;
+  color: #999;
+}
+.bh-summary-amount {
+  font-size: 2.4rem;
+  font-weight: 800;
+  color: #2e7d32;
+  letter-spacing: -1px;
+}
+
+/* Toolbar */
+.bh-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.bh-record-count {
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+  color: #777;
+  font-weight: 500;
+}
+
+/* Empty state */
+.bh-empty {
+  text-align: center;
+  padding: 80px 20px;
+}
+.bh-empty-icon {
+  width: 80px;
+  height: 80px;
+  border-radius: 20px;
+  background: #e3f2fd;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px;
+}
+.bh-empty-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #444;
+  margin-bottom: 6px;
+}
+.bh-empty-sub {
+  font-size: 13px;
+  color: #aaa;
+}
+
 .line-chart-container { width: 100%; padding: 10px 0; }
 .line-chart { display: block; width: 100%; height: 280px; }
 .line-chart circle:hover { r: 6; cursor: pointer; }
+
+/* Bill card */
 .bill-card {
-  border-left: 3px solid #1976d2;
-  transition: all 0.2s ease;
+  border-radius: 16px;
+  background: linear-gradient(145deg, #f0f7ff 0%, #f0fff4 100%);
+  border: 1.5px solid #90caf9;
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  padding: 16px 16px 0;
 }
 .bill-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transform: translateY(-3px);
+  box-shadow: 0 6px 20px rgba(25, 118, 210, 0.15);
+}
+
+.bc-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 14px;
+}
+.bc-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin-bottom: 3px;
+}
+.bc-date {
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  color: #777;
+}
+.bc-saved {
+  font-size: 11px;
+  color: #aaa;
+  white-space: nowrap;
+  margin-left: 8px;
+  flex-shrink: 0;
+}
+
+/* Stat chips */
+.bc-stat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.bc-chip {
+  background: white;
+  border-radius: 10px;
+  padding: 8px 10px;
+  border: 1px solid #e3eaf5;
+}
+.bc-chip--full {
+  grid-column: span 2;
+}
+.bc-chip-label {
+  font-size: 10px;
+  color: #999;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-bottom: 3px;
+}
+.bc-chip-value {
+  font-size: 14px;
+  font-weight: 700;
+}
+.bc-chip-value.blue   { color: #1565c0; }
+.bc-chip-value.teal   { color: #00796b; }
+.bc-chip-value.purple { color: #6a1b9a; }
+.bc-chip-value.orange { color: #e65100; }
+
+/* Cost section */
+.bc-cost-section {
+  background: white;
+  border-radius: 12px;
+  border: 1px solid #c8e6c9;
+  text-align: center;
+  padding: 12px 10px 10px;
+  margin-bottom: 0;
+}
+.bc-cost-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #999;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  margin-bottom: 3px;
+}
+.bc-cost-amount {
+  font-size: 2rem;
+  font-weight: 800;
+  color: #2e7d32;
+  line-height: 1.1;
+  letter-spacing: -1px;
+}
+.bc-cost-sub {
+  font-size: 10px;
+  color: #bbb;
+  margin-top: 3px;
+}
+
+/* Actions */
+.bc-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 4px 0 6px;
 }
 </style>

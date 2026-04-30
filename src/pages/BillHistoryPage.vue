@@ -15,6 +15,14 @@
               <div class="text-subtitle2">Saved electricity bill records</div>
             </div>
             <q-space />
+            <q-btn
+              v-if="bills.length > 0"
+              flat dense round icon="download"
+              @click="downloadCSV"
+              class="q-mr-sm"
+            >
+              <q-tooltip>Download as CSV</q-tooltip>
+            </q-btn>
             <ProfileMenu />
           </div>
         </q-card-section>
@@ -75,6 +83,11 @@
               </div>
             </q-item-section>
             <q-item-section side>
+              <q-btn flat round dense icon="image" color="primary" size="sm" @click="downloadCardImage(bill)" :loading="downloadingId === bill.id">
+                <q-tooltip>Download as image</q-tooltip>
+              </q-btn>
+            </q-item-section>
+            <q-item-section side>
               <q-btn flat round dense icon="delete" color="negative" size="sm" @click="confirmDelete(bill)" />
             </q-item-section>
           </q-item>
@@ -132,6 +145,9 @@
                 </div>
               </q-card-section>
               <q-card-actions align="right" class="q-pt-none">
+                <q-btn flat round dense icon="image" color="primary" @click="downloadCardImage(bill)" :loading="downloadingId === bill.id">
+                  <q-tooltip>Download as image</q-tooltip>
+                </q-btn>
                 <q-btn flat round dense icon="delete" color="negative" @click="confirmDelete(bill)">
                   <q-tooltip>Delete record</q-tooltip>
                 </q-btn>
@@ -191,6 +207,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
+import html2canvas from 'html2canvas';
 import { useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { auth, firestore } from 'src/boot/firebase';
@@ -209,6 +226,7 @@ const viewMode = ref('card');
 const showDeleteDialog = ref(false);
 const billToDelete = ref(null);
 const deleting = ref(false);
+const downloadingId = ref(null);
 let currentUid = null;
 let unsubscribeAuth = null;
 
@@ -240,6 +258,71 @@ const chartAreaPoints = computed(() => {
 });
 
 const goBack = () => router.back();
+
+const downloadCardImage = async (bill) => {
+  downloadingId.value = bill.id;
+  const el = document.createElement('div');
+  el.style.cssText = 'position:fixed;left:-9999px;top:0;width:360px;background:#fff;font-family:Roboto,sans-serif;border:1px solid #ddd;border-left:3px solid #1976d2;border-radius:4px;overflow:hidden';
+  el.innerHTML = `
+    <div style="background:#e3f2fd;padding:10px 12px;display:flex;justify-content:space-between;align-items:center">
+      <span style="font-size:12px;color:#555">📅 ${bill.dateRange}</span>
+      <span style="font-size:11px;color:#aaa">${formatSavedAt(bill.savedAt)}</span>
+    </div>
+    <div style="padding:16px">
+      <div style="text-align:center;margin-bottom:12px">
+        <div style="font-size:11px;color:#888">AC Electricity Cost</div>
+        <div style="font-size:32px;font-weight:700;color:#2e7d32">₱${bill.calculatedBill?.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</div>
+      </div>
+      <hr style="border:none;border-top:1px solid #eee;margin:12px 0"/>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12px">
+        <div><div style="color:#999">Household Amount Due</div><div style="font-weight:500">₱${bill.householdAmountDue?.toLocaleString()}</div></div>
+        <div><div style="color:#999">Household Total kWh</div><div style="font-weight:500">${bill.householdTotalKwh?.toLocaleString()} kWh</div></div>
+        <div><div style="color:#999">Rate per kWh</div><div style="font-weight:500">₱${bill.ratePerKwh}</div></div>
+        <div><div style="color:#999">Device Total kWh</div><div style="font-weight:500">${bill.deviceTotalKwh} kWh</div></div>
+        <div><div style="color:#999">Avg kWh/day</div><div style="font-weight:500">${bill.avgKwhPerDay} kWh</div></div>
+        <div><div style="color:#999">Days Active</div><div style="font-weight:500">${bill.daysActive} days</div></div>
+        <div style="grid-column:span 2"><div style="color:#999">Peak Day</div><div style="font-weight:500">${bill.peakDayKwh} kWh</div></div>
+      </div>
+    </div>`;
+  document.body.appendChild(el);
+  try {
+    const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+    const url = canvas.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `bill-${bill.dateRange?.replace(/\//g, '-').replace(/\s/g, '') ?? bill.id}.png`;
+    a.click();
+  } catch (err) {
+    $q.notify({ type: 'negative', message: `Failed to download image: ${err.message}`, icon: 'error' });
+  } finally {
+    document.body.removeChild(el);
+    downloadingId.value = null;
+  }
+};
+
+const downloadCSV = () => {
+  const headers = ['Date Range', 'Saved At', 'AC Electricity Cost (₱)', 'Household Amount Due (₱)', 'Household Total kWh', 'Rate per kWh (₱)', 'Device Total kWh', 'Avg kWh/day', 'Days Active', 'Peak Day kWh'];
+  const rows = bills.value.map(b => [
+    b.dateRange,
+    formatSavedAt(b.savedAt),
+    b.calculatedBill?.toFixed(2),
+    b.householdAmountDue,
+    b.householdTotalKwh,
+    b.ratePerKwh,
+    b.deviceTotalKwh,
+    b.avgKwhPerDay,
+    b.daysActive,
+    b.peakDayKwh
+  ]);
+  const csv = [headers, ...rows].map(r => r.map(v => `"${v ?? ''}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `bill-history-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+};
 
 const formatSavedAt = (iso) => {
   if (!iso) return '';

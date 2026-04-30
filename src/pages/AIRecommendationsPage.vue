@@ -1,49 +1,85 @@
 <template>
-  <q-page class="q-pa-md">
-    <div class="q-gutter-md">
+  <q-page class="ai-page">
+
       <!-- Header -->
-      <q-card class="bg-gradient-purple text-white sticky-header">
-        <q-card-section>
-          <div class="row items-center">
-            <q-btn
-              flat
-              dense
-              round
-              icon="arrow_back"
-              @click="goBack"
-              class="q-mr-md"
-            />
-            <div class="col">
-              <div class="text-h5">
-                <q-icon name="psychology" size="sm" class="q-mr-sm" />
-                AI-Powered Insights
-              </div>
-              <div class="text-subtitle2 text-purple-2">
-                {{ deviceName }} • {{ deviceType }}
-              </div>
-            </div>
-            <q-space />
-            <q-btn
-              flat
-              round
-              icon="settings"
-              @click="showApiKeyDialog = true"
-            >
-              <q-tooltip>API Settings</q-tooltip>
-            </q-btn>
-            <q-btn
-              flat
-              round
-              icon="refresh"
-              @click="resetChat"
-              :loading="sendingMessage"
-            >
-              <q-tooltip>New Analysis</q-tooltip>
-            </q-btn>
-            <ProfileMenu />
+      <div class="ai-header sticky-header">
+        <div class="ai-header-inner">
+          <q-btn flat dense round icon="arrow_back" color="white" @click="goBack" class="q-mr-sm" />
+          <div class="ai-header-icon">
+            <q-icon name="psychology" size="22px" color="white" />
           </div>
-        </q-card-section>
-      </q-card>
+          <div>
+            <div class="ai-header-title">AI-Powered Insights</div>
+            <div class="ai-header-sub">{{ deviceName }} • {{ deviceType }}</div>
+          </div>
+          <q-space />
+          <q-btn flat round icon="history" color="white" @click="showHistoryDrawer = true; fetchChatSessions()">
+            <q-tooltip>Chat History</q-tooltip>
+          </q-btn>
+          <q-btn flat round icon="settings" color="white" @click="showApiKeyDialog = true">
+            <q-tooltip>API Settings</q-tooltip>
+          </q-btn>
+          <q-btn flat round icon="refresh" color="white" @click="resetChat" :loading="sendingMessage || compacting">
+            <q-tooltip>New Analysis</q-tooltip>
+          </q-btn>
+          <ProfileMenu />
+        </div>
+      </div>
+
+      <!-- Chat History Drawer -->
+      <q-drawer v-model="showHistoryDrawer" side="right" overlay bordered :width="320" class="history-drawer">
+        <div class="history-drawer-header">
+          <div class="history-drawer-title">
+            <q-icon name="history" size="18px" class="q-mr-sm" />Chat History
+          </div>
+          <q-btn flat round dense icon="close" color="white" @click="showHistoryDrawer = false" />
+        </div>
+
+        <div class="history-drawer-body">
+          <!-- Loading -->
+          <div v-if="loadingHistory" class="text-center q-pa-lg">
+            <q-spinner color="purple" size="32px" />
+            <div class="text-caption text-grey-5 q-mt-sm">Loading sessions...</div>
+          </div>
+
+          <!-- Empty -->
+          <div v-else-if="chatSessions.length === 0" class="text-center q-pa-xl text-grey-5">
+            <q-icon name="chat_bubble_outline" size="40px" color="grey-4" />
+            <div class="q-mt-sm text-caption">No saved sessions yet</div>
+          </div>
+
+          <!-- Session list -->
+          <div v-else>
+            <div
+              v-for="session in chatSessions"
+              :key="session.id"
+              class="history-session-card"
+            >
+              <div class="history-session-top">
+                <div>
+                  <div class="history-session-date">{{ formatSessionDate(session.savedAt) }}</div>
+                  <div class="history-session-period" v-if="session.period">
+                    <q-icon name="date_range" size="11px" class="q-mr-xs" />{{ session.period }}
+                  </div>
+                </div>
+                <q-btn flat round dense icon="delete" color="negative" size="sm" @click.stop="deleteSession(session)" />
+              </div>
+              <div class="history-session-preview">{{ session.preview }}</div>
+              <div v-if="session.summary" class="history-session-summary">
+                <q-icon name="summarize" size="12px" class="q-mr-xs text-purple" />
+                {{ session.summary.slice(0, 120) }}...
+              </div>
+              <q-btn
+                unelevated color="purple" label="Continue Chat" icon="chat" size="sm"
+                class="q-mt-sm full-width" style="border-radius:8px"
+                @click="loadSession(session)"
+              />
+            </div>
+          </div>
+        </div>
+      </q-drawer>
+
+      <div class="ai-content">
 
       <!-- API Key Setup Dialog -->
       <q-dialog v-model="showApiKeyDialog" :maximized="$q.screen.lt.sm" transition-show="slide-up" transition-hide="slide-down">
@@ -196,129 +232,132 @@
 
 
       <!-- Quick Stats Summary -->
-      <q-card v-if="energyStats" flat bordered>
-        <q-card-section>
-          <div class="row items-center justify-between q-mb-sm">
-            <div class="text-subtitle2 text-grey-7">Analysis Period</div>
-            <q-chip color="primary" text-color="white" icon="event" size="md">
-              {{ formatAnalysisPeriod() }}
-            </q-chip>
+      <div v-if="energyStats" class="ai-stats-card">
+        <!-- Period + weather row -->
+        <div class="ai-stats-top">
+          <div class="ai-period-label">
+            <q-icon name="date_range" size="14px" class="q-mr-xs" />
+            Analysis Period: <strong class="q-ml-xs">{{ formatAnalysisPeriod() }}</strong>
           </div>
-          <div class="row q-col-gutter-sm">
-            <div class="col-6 col-sm-3">
-              <div class="text-center">
-                <div class="text-h5 text-primary text-weight-bold">{{ energyStats.total }} kWh</div>
-                <div class="text-caption text-grey-7">Total Usage</div>
-              </div>
-            </div>
-            <div class="col-6 col-sm-3">
-              <div class="text-center">
-                <div class="text-h5 text-positive text-weight-bold">{{ energyStats.average }} kWh</div>
-                <div class="text-caption text-grey-7">Daily Average</div>
-              </div>
-            </div>
-            <div class="col-6 col-sm-3">
-              <div class="text-center">
-                <div class="text-h5 text-purple text-weight-bold">{{ energyStats.daysActive }}</div>
-                <div class="text-caption text-grey-7">Days Active</div>
-              </div>
-            </div>
-            <div class="col-6 col-sm-3">
-              <div class="text-center">
-                <div class="text-h5 text-negative text-weight-bold">{{ energyStats.maxDayKwh }} kWh</div>
-                <div class="text-caption text-grey-7">Peak Day</div>
-              </div>
-            </div>
+          <div class="ai-weather-row" v-if="currentWeather">
+            <q-icon name="wb_sunny" color="orange" size="16px" class="q-mr-xs" />
+            <span class="ai-weather-loc">{{ currentWeather.location }}</span>
+            <span class="ai-weather-chip temp">🌡 {{ currentWeather.temperature }}°C</span>
+            <span class="ai-weather-chip humid">💧 {{ currentWeather.humidity }}%</span>
+            <span class="ai-weather-chip desc">{{ currentWeather.description }}</span>
           </div>
+          <div v-else-if="loadingWeather" class="ai-weather-row">
+            <q-spinner-dots color="grey-5" size="sm" /><span class="text-caption text-grey-5 q-ml-xs">Fetching weather...</span>
+          </div>
+          <div v-else class="ai-weather-row text-caption text-grey-5">
+            <q-icon name="cloud_off" size="14px" class="q-mr-xs" />Weather unavailable
+          </div>
+        </div>
 
-          <!-- Weather Row -->
-          <q-separator class="q-my-sm" />
-          <div v-if="currentWeather" class="row items-center q-gutter-sm q-pt-xs">
-            <q-icon name="wb_sunny" color="orange" size="sm" />
-            <span class="text-caption text-grey-8 text-weight-medium">{{ currentWeather.location }}</span>
-            <q-chip dense color="orange-1" text-color="orange-9" size="sm" icon="thermostat">
-              {{ currentWeather.temperature }}°C
-            </q-chip>
-            <q-chip dense color="blue-1" text-color="blue-9" size="sm" icon="water_drop">
-              {{ currentWeather.humidity }}% humidity
-            </q-chip>
-            <q-chip dense color="grey-2" text-color="grey-8" size="sm">
-              {{ currentWeather.description }}
-            </q-chip>
+        <!-- 4 stat chips -->
+        <div class="ai-stat-grid">
+          <div class="ai-stat-chip">
+            <div class="ai-stat-icon" style="background:#e3f2fd">
+              <q-icon name="bolt" size="18px" color="primary" />
+            </div>
+            <div class="ai-stat-value text-primary">{{ energyStats.total }} kWh</div>
+            <div class="ai-stat-label">Total Usage</div>
           </div>
-          <div v-else-if="loadingWeather" class="row items-center q-gutter-xs q-pt-xs">
-            <q-spinner-dots color="grey-5" size="sm" />
-            <span class="text-caption text-grey-5">Fetching weather...</span>
+          <div class="ai-stat-chip">
+            <div class="ai-stat-icon" style="background:#e8f5e9">
+              <q-icon name="trending_up" size="18px" color="positive" />
+            </div>
+            <div class="ai-stat-value text-positive">{{ energyStats.average }} kWh</div>
+            <div class="ai-stat-label">Daily Average</div>
           </div>
-          <div v-else class="text-caption text-grey-5 q-pt-xs">
-            <q-icon name="cloud_off" size="xs" class="q-mr-xs" />Weather unavailable — check location in Settings
+          <div class="ai-stat-chip">
+            <div class="ai-stat-icon" style="background:#f3e5f5">
+              <q-icon name="calendar_today" size="18px" color="purple" />
+            </div>
+            <div class="ai-stat-value text-purple">{{ energyStats.daysActive }}</div>
+            <div class="ai-stat-label">Days Active</div>
           </div>
-        </q-card-section>
-      </q-card>
+          <div class="ai-stat-chip">
+            <div class="ai-stat-icon" style="background:#fce4ec">
+              <q-icon name="local_fire_department" size="18px" color="negative" />
+            </div>
+            <div class="ai-stat-value text-negative">{{ energyStats.maxDayKwh }} kWh</div>
+            <div class="ai-stat-label">Peak Day</div>
+          </div>
+        </div>
+      </div>
 
       <!-- Chat Card -->
-      <q-card class="ai-card">
+      <div class="ai-chat-card">
+
         <!-- Empty State -->
-        <q-card-section v-if="chatMessages.length === 0 && !sendingMessage">
-          <div class="text-center q-pa-lg">
-            <q-icon name="auto_awesome" size="80px" color="purple" class="q-mb-md" />
-            <div class="text-h6 q-mb-sm">Get Personalized Recommendations</div>
-            <div class="text-body2 text-grey-7 q-mb-lg">
-              Our AI will analyze your usage patterns and provide actionable insights to save energy and money
-            </div>
-            <q-btn
-              @click="startChat"
-              color="purple"
-              icon="psychology"
-              label="Analyze My Usage"
-              size="lg"
-              unelevated
-              :disable="!energyStats || !hasApiKey"
-            >
-              <q-tooltip v-if="!hasApiKey">Please configure your API key in Settings</q-tooltip>
-              <q-tooltip v-else-if="!energyStats">Please ensure device has energy data</q-tooltip>
-            </q-btn>
+        <div v-if="chatMessages.length === 0 && !sendingMessage" class="ai-empty-state">
+          <div class="ai-empty-sparkle">
+            <q-icon name="auto_awesome" size="36px" color="white" />
           </div>
-        </q-card-section>
+          <div class="ai-empty-title">Get Personalized Recommendations</div>
+          <div class="ai-empty-sub">Our AI will analyze your usage patterns and provide actionable insights to save energy and money</div>
+          <q-btn
+            @click="startChat"
+            color="purple"
+            icon="psychology"
+            label="Analyze My Usage"
+            unelevated
+            class="ai-analyze-btn"
+            :disable="!energyStats || !hasApiKey"
+          >
+            <q-tooltip v-if="!hasApiKey">Please configure your API key in Settings</q-tooltip>
+            <q-tooltip v-else-if="!energyStats">Please ensure device has energy data</q-tooltip>
+          </q-btn>
+        </div>
 
         <!-- Chat Messages -->
         <template v-if="chatMessages.length > 0 || sendingMessage">
           <div
             ref="chatContainer"
-            :style="$q.screen.lt.sm ? 'height: calc(100vh - 350px)' : 'height: 500px'"
-            style="overflow-y: auto; padding: 16px"
+            class="ai-chat-messages"
+            :style="$q.screen.lt.sm ? 'height: calc(100vh - 320px)' : 'height: 480px'"
           >
             <div v-for="(msg, idx) in chatMessages" :key="idx" class="q-mb-md">
               <!-- User message -->
               <div v-if="msg.role === 'user'" class="row justify-end">
                 <div style="max-width: 80%">
-                  <div class="text-caption text-right text-grey-6 q-mb-xs">You</div>
+                  <div class="ai-msg-label text-right">You</div>
                   <img v-if="msg.image" :src="msg.image" style="max-width: 100%; max-height: 240px; border-radius: 12px 12px 2px 12px; display: block; margin-bottom: 4px" />
-                  <div v-if="msg.text" class="bg-purple text-white q-pa-md" style="border-radius: 12px 12px 2px 12px; white-space: pre-wrap; word-break: break-word">
-                    {{ msg.text }}
-                  </div>
+                  <div v-if="msg.text" class="ai-bubble-user">{{ msg.text }}</div>
                 </div>
               </div>
               <!-- AI message -->
               <div v-else class="row justify-start">
                 <div style="max-width: 85%">
-                  <div class="text-caption text-grey-6 q-mb-xs">
+                  <div class="ai-msg-label">
                     <q-icon name="auto_awesome" size="xs" color="purple" class="q-mr-xs" />Gemini AI
                   </div>
-                  <div class="bg-grey-2 q-pa-md" style="border-radius: 12px 12px 12px 2px; white-space: pre-wrap; word-break: break-word">
-                    {{ msg.text }}
-                  </div>
+                  <div class="ai-bubble-ai">{{ msg.text }}</div>
                 </div>
+              </div>
+            </div>
+
+            <!-- Restored session summary banner at bottom -->
+            <div v-if="currentSessionSummary" class="session-summary-banner">
+              <div class="session-summary-banner-header">
+                <q-icon name="summarize" size="15px" class="q-mr-xs" />
+                Previous Session Summary
+              </div>
+              <div class="session-summary-banner-text">{{ currentSessionSummary }}</div>
+              <div class="session-summary-banner-footer">
+                <q-icon name="arrow_upward" size="12px" class="q-mr-xs" />
+                Full conversation restored above — continue chatting below
               </div>
             </div>
 
             <!-- Typing indicator -->
             <div v-if="sendingMessage" class="row justify-start q-mb-md">
               <div>
-                <div class="text-caption text-grey-6 q-mb-xs">
+                <div class="ai-msg-label">
                   <q-icon name="auto_awesome" size="xs" color="purple" class="q-mr-xs" />Gemini AI
                 </div>
-                <div class="bg-grey-2 q-pa-md" style="border-radius: 12px 12px 12px 2px">
+                <div class="ai-bubble-ai ai-bubble-typing">
                   <q-spinner-dots color="purple" size="1.5em" />
                 </div>
               </div>
@@ -328,24 +367,23 @@
           <q-separator />
 
           <!-- Input Bar -->
-          <q-card-section class="q-pa-sm">
+          <div class="ai-input-bar">
             <!-- Image preview -->
-            <div v-if="imagePreview" class="row items-center q-mb-sm q-gutter-sm">
+            <div v-if="imagePreview" class="ai-image-preview">
               <div style="position: relative; display: inline-block">
                 <img :src="imagePreview" style="height: 72px; border-radius: 8px; display: block" />
-                <q-btn
-                  round dense unelevated icon="close" color="negative" size="xs"
-                  style="position: absolute; top: -6px; right: -6px"
-                  @click="clearImage"
-                />
+                <q-btn round dense unelevated icon="close" color="negative" size="xs"
+                  style="position: absolute; top: -6px; right: -6px" @click="clearImage" />
               </div>
             </div>
 
             <div class="row items-center q-gutter-sm">
-              <q-btn flat round dense icon="add_comment" color="grey-6" @click="resetChat" :disable="sendingMessage">
-                <q-tooltip anchor="top middle" self="bottom middle">Start new analysis</q-tooltip>
+              <q-btn flat round dense icon="add_comment" color="grey-6" @click="resetChat" :disable="sendingMessage || compacting">
+                <q-tooltip anchor="top middle" self="bottom middle">Save &amp; start new analysis</q-tooltip>
               </q-btn>
-              <!-- Hidden file input -->
+              <q-btn flat round dense icon="save" color="purple" @click="saveCurrentChat" :disable="sendingMessage || compacting || chatMessages.length < 2">
+                <q-tooltip anchor="top middle" self="bottom middle">Save chat to history</q-tooltip>
+              </q-btn>
               <input ref="fileInput" type="file" accept="image/*" style="display:none" @change="onImageSelected" />
               <q-btn flat round dense icon="image" color="grey-6" @click="fileInput.click()" :disable="sendingMessage">
                 <q-tooltip anchor="top middle" self="bottom middle">Attach image</q-tooltip>
@@ -353,35 +391,49 @@
               <q-input
                 v-model="chatInput"
                 :placeholder="imagePreview ? 'Add a message (optional)...' : 'Ask a follow-up question or paste an image...'"
-                outlined
-                dense
-                class="col"
+                outlined dense class="col"
                 @keyup.enter="sendChatMessage"
                 @paste="onPaste"
                 :disable="sendingMessage"
               />
-              <q-btn
-                round unelevated color="purple" icon="send"
+              <q-btn round unelevated color="purple" icon="send"
                 @click="sendChatMessage"
                 :disable="(!chatInput.trim() && !imagePreview) || sendingMessage"
-                :loading="sendingMessage"
-              />
+                :loading="sendingMessage" />
             </div>
-          </q-card-section>
+          </div>
         </template>
+
+      </div>
+
+      </div><!-- end ai-content -->
+
+    <!-- Saving Progress Dialog -->
+    <q-dialog v-model="compacting" persistent>
+      <q-card class="saving-dialog-card">
+        <q-card-section class="saving-dialog-header">
+          <q-icon name="cloud_upload" size="28px" color="white" />
+          <div class="saving-dialog-title">Saving Chat</div>
+        </q-card-section>
+        <q-card-section class="saving-dialog-body">
+          <q-spinner-dots color="purple" size="36px" class="q-mb-md" />
+          <div class="saving-dialog-step">{{ savingStep }}</div>
+          <div class="saving-dialog-sub">Please wait while we compact and save your conversation...</div>
+        </q-card-section>
       </q-card>
-    </div>
+    </q-dialog>
+
   </q-page>
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick } from 'vue';
+import { ref, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { useDeviceStore } from 'src/stores/deviceStore';
 import { useAuthStore } from 'src/stores/authStore';
 import { auth, firestore } from 'src/boot/firebase';
-import { collection, getDocs, query, orderBy } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, query, orderBy, deleteDoc, doc } from 'firebase/firestore';
 import ProfileMenu from 'src/components/ProfileMenu.vue';
 
 const route = useRoute();
@@ -410,6 +462,15 @@ const chatContainer = ref(null);
 const fileInput = ref(null);
 const imagePreview = ref(null);
 const imageData = ref(null); // { mimeType, data: base64 }
+
+// Chat history
+const showHistoryDrawer = ref(false);
+const chatSessions = ref([]);
+const loadingHistory = ref(false);
+const compacting = ref(false);
+const savingStep = ref(''); // shown in the saving dialog
+const currentSessionSummary = ref(null); // summary from a loaded previous session
+const currentSessionId = ref(null); // Firestore doc ID if continuing an existing session
 
 // Energy state
 const energyStats = ref(null);
@@ -747,15 +808,21 @@ const callGemini = async (messages) => {
     return { role: m.role, parts };
   });
 
+  const isFirstMessage = messages.filter(m => m.role === 'user').length === 1;
+  const summaryContext = currentSessionSummary.value
+    ? `\n\nContext from previous conversation: ${currentSessionSummary.value}`
+    : '';
+  const systemText = isFirstMessage
+    ? `You are a friendly energy advisor. For this initial analysis, respond with clear sections and bullet points to organize your insights. Never return JSON or code blocks.${summaryContext}`
+    : `You are a friendly energy advisor in a conversation. The user is asking a follow-up question. Respond naturally and conversationally — no need for headers or full re-analysis unless specifically asked. Keep it concise and helpful. Never return JSON or code blocks.${summaryContext}`;
+
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${selectedModel.value}:generateContent`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-goog-api-key': apiKeyInput.value },
       body: JSON.stringify({
-        systemInstruction: {
-          parts: [{ text: 'You are a friendly energy advisor. Always respond in clear, natural language using bullet points and sections. Never return JSON or code blocks.' }]
-        },
+        systemInstruction: { parts: [{ text: systemText }] },
         contents,
         generationConfig: { temperature: 0.7, maxOutputTokens: 4096 }
       })
@@ -828,6 +895,24 @@ const scrollToBottom = async () => {
   }
 };
 
+const typeMessage = (text) => {
+  return new Promise((resolve) => {
+    chatMessages.value.push({ role: 'model', text: '' });
+    const idx = chatMessages.value.length - 1;
+    let i = 0;
+    const interval = setInterval(async () => {
+      chatMessages.value[idx].text += text[i];
+      i++;
+      if (i % 8 === 0) await scrollToBottom();
+      if (i >= text.length) {
+        clearInterval(interval);
+        await scrollToBottom();
+        resolve();
+      }
+    }, 12);
+  });
+};
+
 // Start a new analysis chat — first message uses the prompt template
 const startChat = async () => {
   if (!apiKeyInput.value) {
@@ -846,12 +931,11 @@ const startChat = async () => {
 
   try {
     const reply = await callGemini(chatMessages.value);
-    chatMessages.value.push({ role: 'model', text: reply });
-  } catch (err) {
-    chatMessages.value.push({ role: 'model', text: `❌ Error: ${err.message}` });
-  } finally {
     sendingMessage.value = false;
-    await scrollToBottom();
+    await typeMessage(reply);
+  } catch (err) {
+    sendingMessage.value = false;
+    await typeMessage(`❌ Error: ${err.message}`);
   }
 };
 
@@ -874,19 +958,133 @@ const sendChatMessage = async () => {
 
   try {
     const reply = await callGemini(chatMessages.value);
-    chatMessages.value.push({ role: 'model', text: reply });
-  } catch (err) {
-    chatMessages.value.push({ role: 'model', text: `❌ Error: ${err.message}` });
-  } finally {
     sendingMessage.value = false;
-    await scrollToBottom();
+    await typeMessage(reply);
+  } catch (err) {
+    sendingMessage.value = false;
+    await typeMessage(`❌ Error: ${err.message}`);
   }
 };
 
-// Clear chat and go back to empty state
-const resetChat = () => {
+// Compact conversation into a short summary then save to Firestore
+const compactAndSave = async () => {
+  if (chatMessages.value.length < 2) return;
+  const uid = auth.currentUser?.uid;
+  if (!uid || !apiKeyInput.value) return;
+
+  compacting.value = true;
+  savingStep.value = 'Compacting conversation...';
+  try {
+    const newTranscript = chatMessages.value
+      .map(m => `${m.role === 'user' ? 'User' : 'AI'}: ${m.text}`)
+      .join('\n');
+
+    const compactPrompt = currentSessionSummary.value
+      ? `You previously summarized a conversation as:\n"${currentSessionSummary.value}"\n\nThe conversation continued with new messages:\n${newTranscript}\n\nUpdate the summary to incorporate the new exchanges. Be thorough — include all important details such as: exact energy usage figures (kWh, averages, peak days), specific AC settings discussed (temperature targets, fan speed, mode, swing), every recommendation given and whether the user acted on it, any bill calculations or cost figures mentioned, user concerns or preferences raised, and any unresolved questions. Length is fine as long as all key details are preserved. This will be used to fully restore context when continuing the conversation later.`
+      : `Create a detailed summary of this AC energy advisor conversation. Include all important details: exact energy usage figures (total kWh, daily average, peak day), AC device settings discussed (temperature, fan speed, mode, swing), every specific recommendation given by the AI, any bill calculations or cost estimates mentioned, user concerns or preferences, and any unresolved questions. Do not omit specifics — a thorough summary is preferred over a brief one. This will be used to fully restore context when continuing the conversation later.\n\n${newTranscript}`;
+
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${selectedModel.value}:generateContent`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-goog-api-key': apiKeyInput.value },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: compactPrompt }] }],
+          generationConfig: { temperature: 0.3, maxOutputTokens: 1024 }
+        })
+      }
+    );
+    const data = await res.json();
+    const summary = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+    savingStep.value = 'Saving to chat history...';
+    const displayMessages = chatMessages.value.map(({ role, text }) => ({ role, text }));
+    const firstAiMsg = displayMessages.find(m => m.role === 'model');
+    const preview = firstAiMsg?.text?.slice(0, 100) || '';
+
+    const sessionData = {
+      messages: displayMessages,
+      summary,
+      preview,
+      period: formatAnalysisPeriod(),
+      deviceName: deviceName.value,
+      savedAt: new Date().toISOString()
+    };
+
+    if (currentSessionId.value) {
+      await updateDoc(doc(firestore, 'users', uid, 'aiChats', currentSessionId.value), sessionData);
+    } else {
+      const newDoc = await addDoc(collection(firestore, 'users', uid, 'aiChats'), sessionData);
+      currentSessionId.value = newDoc.id;
+    }
+
+    savingStep.value = 'Saved!';
+    await fetchChatSessions();
+    $q.notify({ type: 'positive', message: 'Chat saved to history!', icon: 'cloud_done' });
+  } catch (e) {
+    console.error('Failed to compact/save chat:', e);
+    $q.notify({ type: 'negative', message: 'Failed to save chat', icon: 'error' });
+  } finally {
+    compacting.value = false;
+    savingStep.value = '';
+  }
+};
+
+// Manually save current chat without resetting
+const saveCurrentChat = async () => {
+  await compactAndSave();
+};
+
+// Fetch all saved chat sessions
+const fetchChatSessions = async () => {
+  const uid = auth.currentUser?.uid;
+  if (!uid) return;
+  loadingHistory.value = true;
+  try {
+    const q = query(collection(firestore, 'users', uid, 'aiChats'), orderBy('savedAt', 'desc'));
+    const snap = await getDocs(q);
+    chatSessions.value = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (e) {
+    console.error('Failed to fetch chat sessions:', e);
+  } finally {
+    loadingHistory.value = false;
+  }
+};
+
+// Load a previous session for display + inject summary as context
+const loadSession = (session) => {
+  chatMessages.value = session.messages.map(m => ({ ...m }));
+  currentSessionSummary.value = session.summary;
+  currentSessionId.value = session.id;
+  showHistoryDrawer.value = false;
+  $q.notify({ type: 'positive', message: 'Session loaded — you can continue the conversation', icon: 'history' });
+};
+
+// Delete a saved session
+const deleteSession = async (session) => {
+  const uid = auth.currentUser?.uid;
+  if (!uid) return;
+  try {
+    await deleteDoc(doc(firestore, 'users', uid, 'aiChats', session.id));
+    chatSessions.value = chatSessions.value.filter(s => s.id !== session.id);
+    $q.notify({ type: 'positive', message: 'Session deleted', icon: 'delete' });
+  } catch {
+    $q.notify({ type: 'negative', message: 'Failed to delete session' });
+  }
+};
+
+const formatSessionDate = (iso) => {
+  if (!iso) return '';
+  return new Date(iso).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+};
+
+// Clear chat and go back to empty state — compact+save first if there's content
+const resetChat = async () => {
+  if (chatMessages.value.length >= 2) await compactAndSave();
   chatMessages.value = [];
   chatInput.value = '';
+  currentSessionSummary.value = null;
+  currentSessionId.value = null;
 };
 
 // Go back
@@ -960,57 +1158,397 @@ onMounted(async () => {
     hasApiKey.value = !!aiSettings.apiKey;
   }
 
-  // Load device data, weather, and bill history in parallel
-  await Promise.all([fetchDeviceData(), fetchWeatherData(), fetchBillHistory()]);
+  // Load device data, weather, bill history and chat sessions in parallel
+  await Promise.all([fetchDeviceData(), fetchWeatherData(), fetchBillHistory(), fetchChatSessions()]);
 
   // Fetch available models if we have an API key
   if (apiKeyInput.value) {
     await fetchAvailableModels();
   }
+});
 
+onUnmounted(async () => {
+  if (chatMessages.value.length >= 2) await compactAndSave();
 });
 </script>
 
 <style scoped>
-.bg-gradient-purple {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+/* Page */
+.ai-page {
+  background: #f4f6fb;
+  min-height: 100vh;
 }
 
-.ai-card {
-  border: 2px solid #9c27b0;
+/* Header */
+.ai-header {
+  background: linear-gradient(135deg, #5e35b1 0%, #7b1fa2 60%, #9c27b0 100%);
+  padding: 0 20px;
+}
+.ai-header-inner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 0;
+}
+.ai-header-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 11px;
+  background: rgba(255,255,255,0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.ai-header-title {
+  font-size: 19px;
+  font-weight: 700;
+  color: white;
+  line-height: 1.2;
+}
+.ai-header-sub {
+  font-size: 12px;
+  color: rgba(255,255,255,0.7);
+}
+
+/* Content */
+.ai-content {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Stats card */
+.ai-stats-card {
+  background: white;
+  border-radius: 16px;
+  border: 1px solid #e8eef5;
+  overflow: hidden;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+}
+.ai-stats-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 14px 18px;
+  background: linear-gradient(135deg, #f3e5f5, #ede7f6);
+  border-bottom: 1px solid #e1bee7;
+}
+.ai-period-label {
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+  color: #555;
+  font-weight: 500;
+}
+.ai-weather-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.ai-weather-loc {
+  font-size: 12px;
+  font-weight: 600;
+  color: #444;
+}
+.ai-weather-chip {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 20px;
+}
+.ai-weather-chip.temp   { background: #fff3e0; color: #e65100; }
+.ai-weather-chip.humid  { background: #e3f2fd; color: #1565c0; }
+.ai-weather-chip.desc   { background: #f5f5f5; color: #555; }
+
+/* 4-stat grid */
+.ai-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+}
+.ai-stat-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px 10px;
+  border-right: 1px solid #f0f4f8;
+  text-align: center;
+}
+.ai-stat-chip:last-child { border-right: none; }
+.ai-stat-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 8px;
+}
+.ai-stat-value {
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.1;
+  margin-bottom: 3px;
+}
+.ai-stat-label {
+  font-size: 10px;
+  color: #999;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  font-weight: 500;
+}
+
+/* Chat card */
+.ai-chat-card {
+  background: white;
+  border-radius: 16px;
+  border: 2px solid #ce93d8;
+  overflow: hidden;
+  box-shadow: 0 2px 12px rgba(156, 39, 176, 0.08);
+}
+
+/* Empty state */
+.ai-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 52px 24px;
+  text-align: center;
+}
+.ai-empty-sparkle {
+  width: 72px;
+  height: 72px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #7b1fa2, #9c27b0);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 18px;
+  box-shadow: 0 6px 20px rgba(156, 39, 176, 0.3);
+}
+.ai-empty-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin-bottom: 8px;
+}
+.ai-empty-sub {
+  font-size: 13px;
+  color: #888;
+  max-width: 400px;
+  line-height: 1.6;
+  margin-bottom: 24px;
+}
+.ai-analyze-btn {
   border-radius: 12px;
+  padding: 10px 28px;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
 }
 
-.border-left-critical {
-  border-left: 4px solid #f44336;
+/* Chat messages */
+.ai-chat-messages {
+  overflow-y: auto;
+  padding: 18px;
+}
+.ai-msg-label {
+  font-size: 11px;
+  color: #aaa;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+}
+.ai-bubble-user {
+  background: linear-gradient(135deg, #7b1fa2, #9c27b0);
+  color: white;
+  padding: 12px 16px;
+  border-radius: 14px 14px 2px 14px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.ai-bubble-ai {
+  background: #f5f0ff;
+  color: #2d2d2d;
+  padding: 12px 16px;
+  border-radius: 14px 14px 14px 2px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 14px;
+  line-height: 1.6;
+  border: 1px solid #e1bee7;
+}
+.ai-bubble-typing { padding: 10px 16px; }
+
+/* Input bar */
+/* Restored session summary banner */
+.session-summary-banner {
+  background: linear-gradient(135deg, #f3e5f5, #ede7f6);
+  border: 1.5px solid #ce93d8;
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 18px;
+}
+.session-summary-banner-header {
+  display: flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #6a1b9a;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+.session-summary-banner-text {
+  font-size: 13px;
+  color: #444;
+  line-height: 1.6;
+  margin-bottom: 8px;
+}
+.session-summary-banner-footer {
+  display: flex;
+  align-items: center;
+  font-size: 11px;
+  color: #9e9e9e;
+  font-style: italic;
 }
 
-.border-left-success {
-  border-left: 4px solid #4caf50;
+.ai-input-bar {
+  padding: 10px 14px 12px;
 }
+.ai-image-preview { margin-bottom: 8px; }
 
-.border-left-info {
-  border-left: 4px solid #2196f3;
-}
-
-.border-left-maintenance {
-  border-left: 4px solid #9c27b0;
-}
-
-.border-left-tips {
-  border-left: 4px solid #ff9800;
-}
-
-.border-left-warning {
-  border-left: 4px solid #ff9800;
-}
-
-.rounded-borders {
-  border-radius: 8px;
+/* Responsive */
+@media (max-width: 599px) {
+  .ai-stat-grid { grid-template-columns: 1fr 1fr; }
+  .ai-stat-chip { border-bottom: 1px solid #f0f4f8; }
+  .ai-stat-chip:nth-child(even) { border-right: none; }
+  .ai-stat-chip:nth-last-child(-n+2) { border-bottom: none; }
+  .ai-stats-top { flex-direction: column; align-items: flex-start; }
+  .ai-header-title { font-size: 16px; }
 }
 
 .prompt-input textarea {
   font-family: 'Courier New', monospace;
   font-size: 12px;
+}
+
+/* History drawer */
+/* Saving dialog */
+.saving-dialog-card {
+  border-radius: 16px;
+  overflow: hidden;
+  min-width: 280px;
+  text-align: center;
+}
+.saving-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, #5e35b1, #9c27b0);
+}
+.saving-dialog-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: white;
+}
+.saving-dialog-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 20px 20px;
+}
+.saving-dialog-step {
+  font-size: 14px;
+  font-weight: 600;
+  color: #6a1b9a;
+  margin-bottom: 6px;
+}
+.saving-dialog-sub {
+  font-size: 12px;
+  color: #aaa;
+}
+
+/* History drawer */
+.history-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, #5e35b1, #9c27b0);
+}
+.history-drawer-title {
+  display: flex;
+  align-items: center;
+  font-size: 15px;
+  font-weight: 700;
+  color: white;
+}
+.history-drawer-body {
+  padding: 12px;
+  overflow-y: auto;
+  height: calc(100% - 56px);
+}
+.history-session-card {
+  background: #faf5ff;
+  border: 1.5px solid #e1bee7;
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  transition: box-shadow 0.15s ease;
+}
+.history-session-card:hover {
+  box-shadow: 0 4px 12px rgba(156,39,176,0.12);
+}
+.history-session-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.history-session-date {
+  font-size: 12px;
+  font-weight: 700;
+  color: #6a1b9a;
+}
+.history-session-period {
+  font-size: 11px;
+  color: #aaa;
+  display: flex;
+  align-items: center;
+}
+.history-session-preview {
+  font-size: 12px;
+  color: #444;
+  line-height: 1.5;
+  margin-bottom: 6px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.history-session-summary {
+  font-size: 11px;
+  color: #888;
+  line-height: 1.4;
+  background: white;
+  border-radius: 6px;
+  padding: 6px 8px;
+  border: 1px solid #f0e6ff;
+  display: flex;
+  align-items: flex-start;
+  gap: 2px;
 }
 </style>

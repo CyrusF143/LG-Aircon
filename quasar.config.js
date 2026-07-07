@@ -50,7 +50,9 @@ export default defineConfig((ctx) => {
       env: {
         COPILOTKIT_RUNTIME_URL:
           process.env.COPILOTKIT_RUNTIME_URL ||
-          (ctx.dev ? 'http://localhost:4000/api/copilotkit' : 'https://REPLACE-WITH-YOUR-RENDER-URL.onrender.com/api/copilotkit'),
+          (ctx.dev
+            ? 'http://localhost:4000/api/copilotkit'
+            : 'https://lg-aircon.onrender.com/api/copilotkit'),
       },
       // rawDefine: {}
       // ignorePublicFolder: true,
@@ -103,9 +105,9 @@ export default defineConfig((ctx) => {
       // directives: [],
 
       // Quasar plugins
-        plugins: [
-          'Notify'  // Add this line
-        ]
+      plugins: [
+        'Notify', // Add this line
+      ],
     },
 
     // animations: 'all', // --- includes all animations

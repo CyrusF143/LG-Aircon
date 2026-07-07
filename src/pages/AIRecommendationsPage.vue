@@ -19,7 +19,7 @@
           <q-btn flat round icon="settings" color="white" @click="showApiKeyDialog = true">
             <q-tooltip>API Settings</q-tooltip>
           </q-btn>
-          <q-btn flat round icon="refresh" color="white" @click="resetChat" :loading="sendingMessage || compacting">
+          <q-btn flat round icon="refresh" color="white" @click="resetChat" :loading="compacting">
             <q-tooltip>New Analysis</q-tooltip>
           </q-btn>
           <ProfileMenu />
@@ -181,22 +181,6 @@
               {{ currentWeather.location }}: {{ currentWeather.temperature }}°C, {{ currentWeather.humidity }}% humidity — {{ currentWeather.description }}
             </q-banner>
 
-            <!-- Custom Prompt Input -->
-            <div class="q-mb-md">
-              <div class="text-subtitle2 q-mb-sm">AI Prompt Template</div>
-              <q-input
-                v-model="customPrompt"
-                type="textarea"
-                outlined
-                rows="8"
-                class="prompt-input"
-              >
-                <template v-slot:prepend>
-                  <q-icon name="edit_note" />
-                </template>
-              </q-input>
-            </div>
-
             <q-banner v-if="hasApiKey" dense class="bg-green-1 text-green-9" rounded>
               <template v-slot:avatar>
                 <q-icon name="check_circle" color="green" />
@@ -290,118 +274,49 @@
       <!-- Chat Card -->
       <div class="ai-chat-card">
 
-        <!-- Empty State -->
-        <div v-if="chatMessages.length === 0 && !sendingMessage" class="ai-empty-state">
+        <!-- Needs API key -->
+        <div v-if="!hasApiKey" class="ai-empty-state">
           <div class="ai-empty-sparkle">
             <q-icon name="auto_awesome" size="36px" color="white" />
           </div>
           <div class="ai-empty-title">Get Personalized Recommendations</div>
-          <div class="ai-empty-sub">Our AI will analyze your usage patterns and provide actionable insights to save energy and money</div>
+          <div class="ai-empty-sub">Configure your Gemini API key so the AI can analyze your usage patterns and saved bill history.</div>
           <q-btn
-            @click="startChat"
+            @click="showApiKeyDialog = true"
             color="purple"
-            icon="psychology"
-            label="Analyze My Usage"
+            icon="settings"
+            label="Configure API Key"
             unelevated
             class="ai-analyze-btn"
-            :disable="!energyStats || !hasApiKey"
-          >
-            <q-tooltip v-if="!hasApiKey">Please configure your API key in Settings</q-tooltip>
-            <q-tooltip v-else-if="!energyStats">Please ensure device has energy data</q-tooltip>
-          </q-btn>
+          />
         </div>
 
-        <!-- Chat Messages -->
-        <template v-if="chatMessages.length > 0 || sendingMessage">
-          <div
-            ref="chatContainer"
-            class="ai-chat-messages"
-            :style="$q.screen.lt.sm ? 'height: calc(100vh - 320px)' : 'height: 480px'"
-          >
-            <div v-for="(msg, idx) in chatMessages" :key="idx" class="q-mb-md">
-              <!-- User message -->
-              <div v-if="msg.role === 'user'" class="row justify-end">
-                <div style="max-width: 80%">
-                  <div class="ai-msg-label text-right">You</div>
-                  <img v-if="msg.image" :src="msg.image" style="max-width: 100%; max-height: 240px; border-radius: 12px 12px 2px 12px; display: block; margin-bottom: 4px" />
-                  <div v-if="msg.text" class="ai-bubble-user">{{ msg.text }}</div>
-                </div>
-              </div>
-              <!-- AI message -->
-              <div v-else class="row justify-start">
-                <div style="max-width: 85%">
-                  <div class="ai-msg-label">
-                    <q-icon name="auto_awesome" size="xs" color="purple" class="q-mr-xs" />Gemini AI
-                  </div>
-                  <div class="ai-bubble-ai">{{ msg.text }}</div>
-                </div>
-              </div>
-            </div>
+        <!-- Waiting on energy data -->
+        <div v-else-if="!energyStats" class="ai-empty-state">
+          <q-spinner color="purple" size="40px" />
+          <div class="ai-empty-sub q-mt-md">Loading device energy data...</div>
+        </div>
 
-            <!-- Restored session summary banner at bottom -->
-            <div v-if="currentSessionSummary" class="session-summary-banner">
-              <div class="session-summary-banner-header">
-                <q-icon name="summarize" size="15px" class="q-mr-xs" />
-                Previous Session Summary
-              </div>
-              <div class="session-summary-banner-text">{{ currentSessionSummary }}</div>
-              <div class="session-summary-banner-footer">
-                <q-icon name="arrow_upward" size="12px" class="q-mr-xs" />
-                Full conversation restored above — continue chatting below
-              </div>
+        <!-- CopilotKit chat -->
+        <template v-else>
+          <div v-if="currentSessionSummary" class="session-summary-banner">
+            <div class="session-summary-banner-header">
+              <q-icon name="summarize" size="15px" class="q-mr-xs" />
+              Previous Session Summary
             </div>
-
-            <!-- Typing indicator -->
-            <div v-if="sendingMessage" class="row justify-start q-mb-md">
-              <div>
-                <div class="ai-msg-label">
-                  <q-icon name="auto_awesome" size="xs" color="purple" class="q-mr-xs" />Gemini AI
-                </div>
-                <div class="ai-bubble-ai ai-bubble-typing">
-                  <q-spinner-dots color="purple" size="1.5em" />
-                </div>
-              </div>
-            </div>
+            <div class="session-summary-banner-text">{{ currentSessionSummary }}</div>
           </div>
-
-          <q-separator />
-
-          <!-- Input Bar -->
-          <div class="ai-input-bar">
-            <!-- Image preview -->
-            <div v-if="imagePreview" class="ai-image-preview">
-              <div style="position: relative; display: inline-block">
-                <img :src="imagePreview" style="height: 72px; border-radius: 8px; display: block" />
-                <q-btn round dense unelevated icon="close" color="negative" size="xs"
-                  style="position: absolute; top: -6px; right: -6px" @click="clearImage" />
-              </div>
-            </div>
-
-            <div class="row items-center q-gutter-sm">
-              <q-btn flat round dense icon="add_comment" color="grey-6" @click="resetChat" :disable="sendingMessage || compacting">
-                <q-tooltip anchor="top middle" self="bottom middle">Save &amp; start new analysis</q-tooltip>
-              </q-btn>
-              <q-btn flat round dense icon="save" color="purple" @click="saveCurrentChat" :disable="sendingMessage || compacting || chatMessages.length < 2">
-                <q-tooltip anchor="top middle" self="bottom middle">Save chat to history</q-tooltip>
-              </q-btn>
-              <input ref="fileInput" type="file" accept="image/*" style="display:none" @change="onImageSelected" />
-              <q-btn flat round dense icon="image" color="grey-6" @click="fileInput.click()" :disable="sendingMessage">
-                <q-tooltip anchor="top middle" self="bottom middle">Attach image</q-tooltip>
-              </q-btn>
-              <q-input
-                v-model="chatInput"
-                :placeholder="imagePreview ? 'Add a message (optional)...' : 'Ask a follow-up question or paste an image...'"
-                outlined dense class="col"
-                @keyup.enter="sendChatMessage"
-                @paste="onPaste"
-                :disable="sendingMessage"
-              />
-              <q-btn round unelevated color="purple" icon="send"
-                @click="sendChatMessage"
-                :disable="(!chatInput.trim() && !imagePreview) || sendingMessage"
-                :loading="sendingMessage" />
-            </div>
-          </div>
+          <CopilotChatMount
+            ref="copilotMount"
+            :api-key="apiKeyInput"
+            :model="selectedModel"
+            :runtime-url="runtimeUrl"
+            :energy-stats="energyStats"
+            :device-status="deviceStatus"
+            :bill-history="billHistory"
+            :weather="currentWeather"
+            :past-sessions="pastSessionsForAI"
+          />
         </template>
 
       </div>
@@ -427,7 +342,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { useDeviceStore } from 'src/stores/deviceStore';
@@ -435,6 +350,7 @@ import { useAuthStore } from 'src/stores/authStore';
 import { auth, firestore } from 'src/boot/firebase';
 import { collection, getDocs, addDoc, updateDoc, query, orderBy, deleteDoc, doc } from 'firebase/firestore';
 import ProfileMenu from 'src/components/ProfileMenu.vue';
+import CopilotChatMount from 'src/components/CopilotChatMount.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -454,19 +370,25 @@ const country = ref('PH');
 const clientId = 'quasar-dashboard-001';
 const apiKey = 'v6GFvkweNo7DK7yD3ylIZ9w52aKBU0eJ7wLXkSR3';
 
-// Chat state
-const chatMessages = ref([]);
-const chatInput = ref('');
-const sendingMessage = ref(false);
-const chatContainer = ref(null);
-const fileInput = ref(null);
-const imagePreview = ref(null);
-const imageData = ref(null); // { mimeType, data: base64 }
+// CopilotKit chat mount + runtime endpoint
+const copilotMount = ref(null);
+const runtimeUrl = process.env.COPILOTKIT_RUNTIME_URL || 'http://localhost:4000/api/copilotkit';
 
 // Chat history
 const showHistoryDrawer = ref(false);
 const chatSessions = ref([]);
 const loadingHistory = ref(false);
+
+// Most recent saved sessions, trimmed, fed to the AI as context so it can
+// recall things the user already mentioned in earlier conversations
+// (e.g. "You previously mentioned you already cleaned the filter").
+const pastSessionsForAI = computed(() =>
+  chatSessions.value.slice(0, 5).map(s => ({
+    period: s.period,
+    savedAt: s.savedAt,
+    messages: (s.messages || []).slice(-30)
+  }))
+);
 const compacting = ref(false);
 const savingStep = ref(''); // shown in the saving dialog
 const currentSessionSummary = ref(null); // summary from a loaded previous session
@@ -493,35 +415,12 @@ const fetchBillHistory = async () => {
   }
 };
 
-const formatBillHistoryForPrompt = () => {
-  if (!billHistory.value.length) return 'No saved bill records yet.';
-  return billHistory.value.slice(0, 6).map(b =>
-    `- ${b.dateRange}: ₱${b.calculatedBill?.toFixed(2)} (${b.deviceTotalKwh} kWh device, rate ₱${b.ratePerKwh}/kWh, ${b.daysActive} days active, avg ${b.avgKwhPerDay} kWh/day, peak ${b.peakDayKwh} kWh)`
-  ).join('\n');
-};
-
 // API Key Management
 const showApiKeyDialog = ref(false);
 const apiKeyInput = ref('');
 const hasApiKey = ref(false);
 const selectedModel = ref('gemini-flash-latest');
 
-const defaultPrompt = `Analyze my AC energy usage and give me personalized recommendations.
-
-Device: {deviceName}
-Power: {powerStatus} | Run State: {runState}
-Mode: {acJobMode} | Fan: {fanSpeed} ({windStrengthDetail})
-Room Temp: {currentRoomTemp}°C → Target: {targetTemp}°C
-Wind Direction (Up-Down Swing): {windDirectionUpDown}
-Usage: {monthlyKwh} kWh ({avgKwh} kWh/day avg), Peak: {peakKwh} kWh
-Rate: ₱{ratePerKwh}/kWh (Philippines)
-Location: {location}
-Outside: {outdoorTemp}°C, {humidity}% humidity, {weatherDesc}
-
-Bill History (recent periods):
-{billHistory}`;
-
-const customPrompt = ref(defaultPrompt);
 const availableModels = ref([
   {
     label: 'Gemini Flash (Recommended)',
@@ -776,235 +675,23 @@ const fetchAvailableModels = async () => {
   }
 };
 
-// Build the prompt from template with current device data
-const buildPrompt = () => {
-  return customPrompt.value
-    .replace('{deviceName}', deviceName.value)
-    .replace('{powerStatus}', deviceStatus.value?.operation?.airConOperationMode || 'Unknown')
-    .replace('{runState}', deviceStatus.value?.runState?.currentState || 'Unknown')
-    .replace('{acJobMode}', deviceStatus.value?.airConJobMode?.currentJobMode || 'Unknown')
-    .replace('{fanSpeed}', deviceStatus.value?.airFlow?.windStrength || 'Unknown')
-    .replace('{windStrengthDetail}', deviceStatus.value?.airFlow?.windStrengthDetail || 'Unknown')
-    .replace('{currentRoomTemp}', deviceStatus.value?.temperature?.currentTemperature ?? 'N/A')
-    .replace('{targetTemp}', deviceStatus.value?.temperature?.targetTemperature ?? 'N/A')
-    .replace('{windDirectionUpDown}', deviceStatus.value?.windDirection?.rotateUpDown ? 'Swing ON' : 'Swing OFF')
-    .replace('{monthlyKwh}', energyStats.value?.total || 0)
-    .replace('{avgKwh}', energyStats.value?.average || 0)
-    .replace('{peakKwh}', energyStats.value?.maxDayKwh || 0)
-    .replace('{ratePerKwh}', 12.50)
-    .replace('{location}', currentWeather.value?.location || locationInput.value)
-    .replace('{outdoorTemp}', currentWeather.value?.temperature ?? 'N/A')
-    .replace('{humidity}', currentWeather.value?.humidity ?? 'N/A')
-    .replace('{weatherDesc}', currentWeather.value?.description || 'N/A')
-    .replace('{billHistory}', formatBillHistoryForPrompt());
-};
-
-// Call Gemini API with full conversation history
-const callGemini = async (messages) => {
-  const contents = messages.map(m => {
-    const parts = [];
-    if (m.imageData) parts.push({ inlineData: m.imageData });
-    if (m.apiText || m.text) parts.push({ text: m.apiText || m.text });
-    return { role: m.role, parts };
-  });
-
-  const isFirstMessage = messages.filter(m => m.role === 'user').length === 1;
-  const summaryContext = currentSessionSummary.value
-    ? `\n\nContext from previous conversation: ${currentSessionSummary.value}`
-    : '';
-  const systemText = isFirstMessage
-    ? `You are a friendly energy advisor. For this initial analysis, respond with clear sections and bullet points to organize your insights. Never return JSON or code blocks.${summaryContext}`
-    : `You are a friendly energy advisor in a conversation. The user is asking a follow-up question. Respond naturally and conversationally — no need for headers or full re-analysis unless specifically asked. Keep it concise and helpful. Never return JSON or code blocks.${summaryContext}`;
-
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${selectedModel.value}:generateContent`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-goog-api-key': apiKeyInput.value },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: systemText }] },
-        contents,
-        generationConfig: { temperature: 0.7, maxOutputTokens: 4096 }
-      })
-    }
-  );
-
-  if (!response.ok) {
-    const err = await response.json();
-    throw new Error(err.error?.message || `API error: ${response.status}`);
-  }
-
-  const data = await response.json();
-
-  if (data.candidates?.[0]?.finishReason === 'MAX_TOKENS') {
-    throw new Error('Response was cut off. Try a different model.');
-  }
-
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!text) throw new Error('No response received from AI');
-  return text;
-};
-
-const onImageSelected = (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = (ev) => {
-    const base64 = ev.target.result.split(',')[1];
-    imagePreview.value = ev.target.result;
-    imageData.value = { mimeType: file.type, data: base64 };
-  };
-  reader.readAsDataURL(file);
-  e.target.value = '';
-};
-
-const clearImage = () => {
-  imagePreview.value = null;
-  imageData.value = null;
-};
-
-const onPaste = (e) => {
-  const items = e.clipboardData?.items;
-  if (!items) return;
-  for (const item of items) {
-    if (item.kind === 'file' && item.type.startsWith('image/')) {
-      e.preventDefault();
-      const file = item.getAsFile();
-      const url = URL.createObjectURL(file);
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = img.naturalWidth;
-        canvas.height = img.naturalHeight;
-        canvas.getContext('2d').drawImage(img, 0, 0);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
-        imagePreview.value = dataUrl;
-        imageData.value = { mimeType: 'image/jpeg', data: dataUrl.split(',')[1] };
-        URL.revokeObjectURL(url);
-      };
-      img.src = url;
-      break;
-    }
-  }
-};
-
-const scrollToBottom = async () => {
-  await nextTick();
-  if (chatContainer.value) {
-    chatContainer.value.scrollTop = chatContainer.value.scrollHeight;
-  }
-};
-
-const typeMessage = (text) => {
-  return new Promise((resolve) => {
-    chatMessages.value.push({ role: 'model', text: '' });
-    const idx = chatMessages.value.length - 1;
-    let i = 0;
-    const interval = setInterval(async () => {
-      chatMessages.value[idx].text += text[i];
-      i++;
-      if (i % 8 === 0) await scrollToBottom();
-      if (i >= text.length) {
-        clearInterval(interval);
-        await scrollToBottom();
-        resolve();
-      }
-    }, 12);
-  });
-};
-
-// Start a new analysis chat — first message uses the prompt template
-const startChat = async () => {
-  if (!apiKeyInput.value) {
-    showApiKeyDialog.value = true;
-    return;
-  }
-
-  chatMessages.value.push({
-    role: 'user',
-    text: '🔍 Analyze my AC energy usage and give me personalized recommendations.',
-    apiText: buildPrompt()
-  });
-
-  sendingMessage.value = true;
-  await scrollToBottom();
-
-  try {
-    const reply = await callGemini(chatMessages.value);
-    sendingMessage.value = false;
-    await typeMessage(reply);
-  } catch (err) {
-    sendingMessage.value = false;
-    await typeMessage(`❌ Error: ${err.message}`);
-  }
-};
-
-// Send a follow-up message
-const sendChatMessage = async () => {
-  const text = chatInput.value.trim();
-  if ((!text && !imageData.value) || sendingMessage.value) return;
-
-  const msg = { role: 'user', text };
-  if (imageData.value) {
-    msg.image = imagePreview.value;
-    msg.imageData = imageData.value;
-  }
-
-  chatInput.value = '';
-  clearImage();
-  chatMessages.value.push(msg);
-  sendingMessage.value = true;
-  await scrollToBottom();
-
-  try {
-    const reply = await callGemini(chatMessages.value);
-    sendingMessage.value = false;
-    await typeMessage(reply);
-  } catch (err) {
-    sendingMessage.value = false;
-    await typeMessage(`❌ Error: ${err.message}`);
-  }
-};
-
-// Compact conversation into a short summary then save to Firestore
-const compactAndSave = async () => {
-  if (chatMessages.value.length < 2) return;
+// Save the current CopilotKit transcript (raw, no AI compaction) to Firestore
+const saveCurrentSession = async () => {
+  if (!copilotMount.value) return;
   const uid = auth.currentUser?.uid;
-  if (!uid || !apiKeyInput.value) return;
+  if (!uid) return;
+
+  const messages = copilotMount.value.saveHistory();
+  if (messages.length < 2) return;
 
   compacting.value = true;
-  savingStep.value = 'Compacting conversation...';
+  savingStep.value = 'Saving to chat history...';
   try {
-    const newTranscript = chatMessages.value
-      .map(m => `${m.role === 'user' ? 'User' : 'AI'}: ${m.text}`)
-      .join('\n');
-
-    const compactPrompt = currentSessionSummary.value
-      ? `You previously summarized a conversation as:\n"${currentSessionSummary.value}"\n\nThe conversation continued with new messages:\n${newTranscript}\n\nUpdate the summary to incorporate the new exchanges. Be thorough — include all important details such as: exact energy usage figures (kWh, averages, peak days), specific AC settings discussed (temperature targets, fan speed, mode, swing), every recommendation given and whether the user acted on it, any bill calculations or cost figures mentioned, user concerns or preferences raised, and any unresolved questions. Length is fine as long as all key details are preserved. This will be used to fully restore context when continuing the conversation later.`
-      : `Create a detailed summary of this AC energy advisor conversation. Include all important details: exact energy usage figures (total kWh, daily average, peak day), AC device settings discussed (temperature, fan speed, mode, swing), every specific recommendation given by the AI, any bill calculations or cost estimates mentioned, user concerns or preferences, and any unresolved questions. Do not omit specifics — a thorough summary is preferred over a brief one. This will be used to fully restore context when continuing the conversation later.\n\n${newTranscript}`;
-
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${selectedModel.value}:generateContent`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-goog-api-key': apiKeyInput.value },
-        body: JSON.stringify({
-          contents: [{ role: 'user', parts: [{ text: compactPrompt }] }],
-          generationConfig: { temperature: 0.3, maxOutputTokens: 1024 }
-        })
-      }
-    );
-    const data = await res.json();
-    const summary = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-
-    savingStep.value = 'Saving to chat history...';
-    const displayMessages = chatMessages.value.map(({ role, text }) => ({ role, text }));
-    const firstAiMsg = displayMessages.find(m => m.role === 'model');
+    const firstAiMsg = messages.find(m => m.role === 'model');
     const preview = firstAiMsg?.text?.slice(0, 100) || '';
 
     const sessionData = {
-      messages: displayMessages,
-      summary,
+      messages,
       preview,
       period: formatAnalysisPeriod(),
       deviceName: deviceName.value,
@@ -1022,17 +709,12 @@ const compactAndSave = async () => {
     await fetchChatSessions();
     $q.notify({ type: 'positive', message: 'Chat saved to history!', icon: 'cloud_done' });
   } catch (e) {
-    console.error('Failed to compact/save chat:', e);
+    console.error('Failed to save chat:', e);
     $q.notify({ type: 'negative', message: 'Failed to save chat', icon: 'error' });
   } finally {
     compacting.value = false;
     savingStep.value = '';
   }
-};
-
-// Manually save current chat without resetting
-const saveCurrentChat = async () => {
-  await compactAndSave();
 };
 
 // Fetch all saved chat sessions
@@ -1051,10 +733,10 @@ const fetchChatSessions = async () => {
   }
 };
 
-// Load a previous session for display + inject summary as context
+// Load a previous session into the CopilotKit chat + restore its legacy summary banner (if any)
 const loadSession = (session) => {
-  chatMessages.value = session.messages.map(m => ({ ...m }));
-  currentSessionSummary.value = session.summary;
+  copilotMount.value?.loadHistory((session.messages || []).map(m => ({ ...m })));
+  currentSessionSummary.value = session.summary || null;
   currentSessionId.value = session.id;
   showHistoryDrawer.value = false;
   $q.notify({ type: 'positive', message: 'Session loaded — you can continue the conversation', icon: 'history' });
@@ -1078,11 +760,10 @@ const formatSessionDate = (iso) => {
   return new Date(iso).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 };
 
-// Clear chat and go back to empty state — compact+save first if there's content
+// Save the current conversation, then start a fresh one
 const resetChat = async () => {
-  if (chatMessages.value.length >= 2) await compactAndSave();
-  chatMessages.value = [];
-  chatInput.value = '';
+  await saveCurrentSession();
+  copilotMount.value?.loadHistory([]);
   currentSessionSummary.value = null;
   currentSessionId.value = null;
 };
@@ -1097,7 +778,6 @@ const saveApiKey = async () => {
   await authStore.saveAISettings({
     apiKey: apiKeyInput.value,
     model: selectedModel.value,
-    prompt: customPrompt.value,
     location: locationInput.value
   });
   hasApiKey.value = !!apiKeyInput.value;
@@ -1119,7 +799,6 @@ const saveApiKey = async () => {
 
 const resetToDefaults = () => {
   apiKeyInput.value = '';
-  customPrompt.value = defaultPrompt;
   selectedModel.value = 'gemini-flash-latest';
   locationInput.value = defaultLocation;
 
@@ -1153,7 +832,6 @@ onMounted(async () => {
   if (aiSettings) {
     if (aiSettings.apiKey) apiKeyInput.value = aiSettings.apiKey;
     if (aiSettings.model) selectedModel.value = aiSettings.model;
-    if (aiSettings.prompt) customPrompt.value = aiSettings.prompt;
     if (aiSettings.location) locationInput.value = aiSettings.location;
     hasApiKey.value = !!aiSettings.apiKey;
   }
@@ -1168,7 +846,7 @@ onMounted(async () => {
 });
 
 onUnmounted(async () => {
-  if (chatMessages.value.length >= 2) await compactAndSave();
+  await saveCurrentSession();
 });
 </script>
 
@@ -1434,11 +1112,6 @@ onUnmounted(async () => {
   .ai-stat-chip:nth-last-child(-n+2) { border-bottom: none; }
   .ai-stats-top { flex-direction: column; align-items: flex-start; }
   .ai-header-title { font-size: 16px; }
-}
-
-.prompt-input textarea {
-  font-family: 'Courier New', monospace;
-  font-size: 12px;
 }
 
 /* History drawer */

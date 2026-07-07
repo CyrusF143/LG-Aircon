@@ -2,8 +2,9 @@
 // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file
 
 import { defineConfig } from '#q-app/wrappers'
+import react from '@vitejs/plugin-react'
 
-export default defineConfig((/* ctx */) => {
+export default defineConfig((ctx) => {
   return {
     // https://v2.quasar.dev/quasar-cli-vite/prefetch-feature
     // preFetch: true,
@@ -46,7 +47,11 @@ export default defineConfig((/* ctx */) => {
 
       // publicPath: '/',
       // analyze: true,
-      // env: {},
+      env: {
+        COPILOTKIT_RUNTIME_URL:
+          process.env.COPILOTKIT_RUNTIME_URL ||
+          (ctx.dev ? 'http://localhost:4000/api/copilotkit' : 'https://REPLACE-WITH-YOUR-RENDER-URL.onrender.com/api/copilotkit'),
+      },
       // rawDefine: {}
       // ignorePublicFolder: true,
       // minify: false,
@@ -67,6 +72,13 @@ export default defineConfig((/* ctx */) => {
           },
           { server: false },
         ],
+        // Only transforms .jsx/.tsx (the CopilotKit React widget) so it never
+        // touches Vue's .vue/.js files handled by Quasar's built-in Vue plugin.
+        // NOTE: react() returns an array of plugins — it must be spread here,
+        // not nested as a single entry, or Quasar's vitePlugins loader
+        // misinterprets the array as its own [name, opts] tuple shorthand and
+        // silently drops every plugin after the first (vite:react-refresh etc).
+        ...react({ include: /\.[jt]sx$/ }),
       ],
     },
 

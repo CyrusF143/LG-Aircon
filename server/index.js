@@ -16,6 +16,19 @@ app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok' });
 });
 
+// Separate from /health on purpose: Render (free tier) sleeps after 15 min
+// with no traffic, but Supabase (free tier) pauses a project after 7 days
+// with no *Supabase API* activity — hitting /health alone never touches
+// Supabase, so it wouldn't prevent that. Point an UptimeRobot monitor at
+// /health every 5-14 min to keep Render awake, and a separate monitor at
+// this route roughly daily to keep Supabase active — each on its own timer
+// matching the service it's actually meant to wake.
+app.get('/api/supabase-keepalive', async (req, res) => {
+  const { error } = await supabase.storage.listBuckets();
+  if (error) return res.status(502).json({ status: 'error', error: error.message });
+  res.status(200).json({ status: 'ok' });
+});
+
 // Knowledge base file storage (manuals, docs, images the AI can reference).
 // Uses the Supabase service-role key, so this must stay server-side only —
 // the browser never sees it, only ever talks to the /api/knowledge/* routes.

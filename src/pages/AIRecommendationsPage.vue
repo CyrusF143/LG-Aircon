@@ -94,8 +94,23 @@
             </div>
           </q-card-section>
 
-          <div :style="$q.screen.lt.sm ? 'flex: 1; overflow-y: auto' : 'overflow-y: auto; max-height: calc(90vh - 130px)'">
+          <q-tabs
+            v-model="settingsTab"
+            dense
+            active-color="purple"
+            indicator-color="purple"
+            align="justify"
+            class="text-grey-7"
+            style="border-bottom: 1px solid #eee"
+          >
+            <q-tab name="general" icon="settings" label="General" />
+            <q-tab name="knowledge" icon="menu_book" label="Knowledge" />
+          </q-tabs>
 
+          <div :style="$q.screen.lt.sm ? 'flex: 1; overflow-y: auto' : 'overflow-y: auto; max-height: calc(90vh - 178px)'">
+
+          <q-tab-panels v-model="settingsTab" animated>
+          <q-tab-panel name="general" class="q-pa-none">
           <q-card-section>
             <div class="text-body2 q-mb-md">
               <strong>✨ 100% FREE!</strong> Configure your Google Gemini API settings and customize the AI prompt.
@@ -191,10 +206,76 @@
               </div>
             </q-banner>
           </q-card-section>
+          </q-tab-panel>
+
+          <q-tab-panel name="knowledge" class="q-pa-none">
+          <q-card-section>
+            <div class="text-body2 q-mb-md">
+              Upload manuals, guides, or notes (PDF, DOCX, image) so the AI can reference them when answering
+              your questions — e.g. what a specific error code means.
+            </div>
+
+            <q-file
+              v-model="knowledgeFileInput"
+              label="Choose a file to upload"
+              outlined
+              accept=".pdf,.doc,.docx,image/*"
+              :disable="uploadingDoc"
+              @update:model-value="uploadKnowledgeDoc"
+              class="q-mb-md"
+            >
+              <template v-slot:prepend>
+                <q-icon name="attach_file" />
+              </template>
+            </q-file>
+
+            <div v-if="uploadingDoc" class="q-mb-md">
+              <q-linear-progress indeterminate color="purple" rounded class="q-mb-xs" />
+              <div class="text-caption text-grey-7">{{ uploadStep }}</div>
+            </div>
+
+            <div v-if="loadingKnowledgeDocs" class="text-center q-pa-md">
+              <q-spinner color="purple" size="28px" />
+            </div>
+
+            <div v-else-if="knowledgeDocs.length === 0" class="text-center q-pa-lg text-grey-5">
+              <q-icon name="menu_book" size="36px" color="grey-4" />
+              <div class="q-mt-sm text-caption">No documents uploaded yet</div>
+            </div>
+
+            <q-list v-else bordered separator class="rounded-borders">
+              <q-item v-for="doc in knowledgeDocs" :key="doc.id">
+                <q-item-section avatar>
+                  <q-icon
+                    :name="doc.kind === 'pdf' ? 'picture_as_pdf' : doc.kind === 'docx' ? 'description' : doc.kind === 'image' ? 'image' : 'insert_drive_file'"
+                    color="purple"
+                  />
+                </q-item-section>
+                <q-item-section>
+                  <q-item-label lines="1">{{ doc.fileName }}</q-item-label>
+                  <q-item-label caption>{{ formatFileSize(doc.sizeBytes) }} • {{ formatSessionDate(doc.uploadedAt) }}</q-item-label>
+                </q-item-section>
+                <q-item-section side>
+                  <div class="row items-center no-wrap">
+                    <q-btn flat round dense icon="visibility" @click="viewKnowledgeDoc(doc)">
+                      <q-tooltip>View</q-tooltip>
+                    </q-btn>
+                    <q-btn flat round dense icon="delete" color="negative" @click="deleteKnowledgeDoc(doc)">
+                      <q-tooltip>Delete</q-tooltip>
+                    </q-btn>
+                  </div>
+                </q-item-section>
+              </q-item>
+            </q-list>
+          </q-card-section>
+          </q-tab-panel>
+          </q-tab-panels>
+
           </div>
 
           <q-card-actions :vertical="$q.screen.lt.sm" :align="$q.screen.lt.sm ? 'stretch' : 'right'" class="q-pa-md" style="border-top: 1px solid #eee">
             <q-btn
+              v-if="settingsTab === 'general'"
               label="Save Settings"
               color="purple"
               unelevated
@@ -202,7 +283,7 @@
               :class="$q.screen.lt.sm ? 'q-mb-xs' : ''"
             />
             <q-btn
-              v-if="hasApiKey"
+              v-if="settingsTab === 'general' && hasApiKey"
               label="Reset to Defaults"
               color="grey"
               flat
@@ -316,6 +397,7 @@
             :bill-history="billHistory"
             :weather="currentWeather"
             :past-sessions="pastSessionsForAI"
+            :knowledge-docs="knowledgeContextForAI"
           />
         </template>
 
@@ -351,6 +433,11 @@ import { auth, firestore } from 'src/boot/firebase';
 import { collection, getDocs, addDoc, updateDoc, query, orderBy, deleteDoc, doc } from 'firebase/firestore';
 import ProfileMenu from 'src/components/ProfileMenu.vue';
 import CopilotChatMount from 'src/components/CopilotChatMount.vue';
+import * as pdfjsLib from 'pdfjs-dist';
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+import mammoth from 'mammoth';
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 const route = useRoute();
 const router = useRouter();
@@ -373,6 +460,10 @@ const apiKey = 'v6GFvkweNo7DK7yD3ylIZ9w52aKBU0eJ7wLXkSR3';
 // CopilotKit chat mount + runtime endpoint
 const copilotMount = ref(null);
 const runtimeUrl = process.env.COPILOTKIT_RUNTIME_URL || 'http://localhost:4000/api/copilotkit';
+const knowledgeApiUrl = process.env.KNOWLEDGE_API_URL || 'http://localhost:4000/api/knowledge';
+
+// Settings dialog tab
+const settingsTab = ref('general');
 
 // Chat history
 const showHistoryDrawer = ref(false);
@@ -412,6 +503,153 @@ const fetchBillHistory = async () => {
     billHistory.value = snapshot.docs.map(d => d.data());
   } catch {
     // non-critical, silently skip
+  }
+};
+
+// Knowledge base: user-uploaded manuals/docs/images the AI can reference
+const knowledgeDocs = ref([]);
+const loadingKnowledgeDocs = ref(false);
+const knowledgeFileInput = ref(null);
+const uploadingDoc = ref(false);
+const uploadStep = ref('');
+const MAX_EXTRACT_CHARS = 20000;
+
+// Trimmed view fed to the AI as readable context — only what it needs to
+// answer questions, not the Firestore/Storage bookkeeping fields.
+const knowledgeContextForAI = computed(() =>
+  knowledgeDocs.value.map(d => ({ fileName: d.fileName, kind: d.kind, text: d.extractedText || null }))
+);
+
+const classifyFile = (file) => {
+  const name = file.name.toLowerCase();
+  if (file.type === 'application/pdf' || name.endsWith('.pdf')) return 'pdf';
+  if (name.endsWith('.docx') || name.endsWith('.doc')) return 'docx';
+  if (file.type.startsWith('image/')) return 'image';
+  return 'other';
+};
+
+const formatFileSize = (bytes) => {
+  if (!bytes) return '0 KB';
+  const kb = bytes / 1024;
+  return kb < 1024 ? `${kb.toFixed(1)} KB` : `${(kb / 1024).toFixed(1)} MB`;
+};
+
+// Extracts plain text from PDF/DOCX so it can be handed to the AI as
+// context. Images are stored but not OCR'd — kept out of scope for now.
+const extractTextFromFile = async (file, kind) => {
+  if (kind === 'pdf') {
+    const buffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+    let text = '';
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      text += content.items.map(item => item.str).join(' ') + '\n';
+      if (text.length >= MAX_EXTRACT_CHARS) break;
+    }
+    return text.slice(0, MAX_EXTRACT_CHARS);
+  }
+  if (kind === 'docx') {
+    const buffer = await file.arrayBuffer();
+    const result = await mammoth.extractRawText({ arrayBuffer: buffer });
+    return result.value.slice(0, MAX_EXTRACT_CHARS);
+  }
+  return null;
+};
+
+const fetchKnowledgeDocs = async () => {
+  const uid = auth.currentUser?.uid;
+  if (!uid) return;
+  loadingKnowledgeDocs.value = true;
+  try {
+    const q = query(collection(firestore, 'users', uid, 'knowledgeDocs'), orderBy('uploadedAt', 'desc'));
+    const snap = await getDocs(q);
+    knowledgeDocs.value = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (e) {
+    console.error('Failed to fetch knowledge docs:', e);
+  } finally {
+    loadingKnowledgeDocs.value = false;
+  }
+};
+
+const uploadKnowledgeDoc = async (file) => {
+  if (!file) return;
+  const uid = auth.currentUser?.uid;
+  if (!uid) return;
+
+  uploadingDoc.value = true;
+  try {
+    const kind = classifyFile(file);
+
+    uploadStep.value = 'Extracting text...';
+    let extractedText = null;
+    try {
+      extractedText = await extractTextFromFile(file, kind);
+    } catch (e) {
+      console.error('Text extraction failed:', e);
+      $q.notify({ type: 'warning', message: 'Could not extract text — the file will still be stored', caption: e.message });
+    }
+
+    uploadStep.value = 'Uploading file...';
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('uid', uid);
+    const uploadRes = await fetch(`${knowledgeApiUrl}/upload`, { method: 'POST', body: formData });
+    if (!uploadRes.ok) throw new Error((await uploadRes.json()).error || 'Upload failed');
+    const { path } = await uploadRes.json();
+
+    uploadStep.value = 'Saving...';
+    await addDoc(collection(firestore, 'users', uid, 'knowledgeDocs'), {
+      fileName: file.name,
+      mimeType: file.type,
+      kind,
+      storagePath: path,
+      extractedText,
+      sizeBytes: file.size,
+      uploadedAt: new Date().toISOString()
+    });
+
+    await fetchKnowledgeDocs();
+    $q.notify({ type: 'positive', message: 'Document uploaded', icon: 'check_circle' });
+  } catch (e) {
+    console.error('Failed to upload knowledge doc:', e);
+    $q.notify({ type: 'negative', message: 'Failed to upload document', caption: e.message });
+  } finally {
+    uploadingDoc.value = false;
+    uploadStep.value = '';
+    knowledgeFileInput.value = null;
+  }
+};
+
+const viewKnowledgeDoc = async (docItem) => {
+  try {
+    const res = await fetch(`${knowledgeApiUrl}/signed-url`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: docItem.storagePath })
+    });
+    if (!res.ok) throw new Error((await res.json()).error || 'Could not open file');
+    const { url } = await res.json();
+    window.open(url, '_blank');
+  } catch (e) {
+    $q.notify({ type: 'negative', message: 'Failed to open document', caption: e.message });
+  }
+};
+
+const deleteKnowledgeDoc = async (docItem) => {
+  const uid = auth.currentUser?.uid;
+  if (!uid) return;
+  try {
+    await fetch(`${knowledgeApiUrl}/file`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: docItem.storagePath })
+    });
+    await deleteDoc(doc(firestore, 'users', uid, 'knowledgeDocs', docItem.id));
+    knowledgeDocs.value = knowledgeDocs.value.filter(d => d.id !== docItem.id);
+    $q.notify({ type: 'positive', message: 'Document deleted', icon: 'delete' });
+  } catch (e) {
+    $q.notify({ type: 'negative', message: 'Failed to delete document', caption: e.message });
   }
 };
 
@@ -837,7 +1075,7 @@ onMounted(async () => {
   }
 
   // Load device data, weather, bill history and chat sessions in parallel
-  await Promise.all([fetchDeviceData(), fetchWeatherData(), fetchBillHistory(), fetchChatSessions()]);
+  await Promise.all([fetchDeviceData(), fetchWeatherData(), fetchBillHistory(), fetchChatSessions(), fetchKnowledgeDocs()]);
 
   // Fetch available models if we have an API key
   if (apiKeyInput.value) {
@@ -854,7 +1092,10 @@ onUnmounted(async () => {
 /* Page */
 .ai-page {
   background: #f4f6fb;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Header */
@@ -892,11 +1133,15 @@ onUnmounted(async () => {
 /* Content */
 .ai-content {
   max-width: 900px;
+  width: 100%;
   margin: 0 auto;
   padding: 20px 16px;
   display: flex;
   flex-direction: column;
   gap: 16px;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 /* Stats card */
@@ -906,6 +1151,7 @@ onUnmounted(async () => {
   border: 1px solid #e8eef5;
   overflow: hidden;
   box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+  flex-shrink: 0;
 }
 .ai-stats-top {
   display: flex;
@@ -989,6 +1235,10 @@ onUnmounted(async () => {
   border: 2px solid #ce93d8;
   overflow: hidden;
   box-shadow: 0 2px 12px rgba(156, 39, 176, 0.08);
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Empty state */
@@ -996,8 +1246,11 @@ onUnmounted(async () => {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   padding: 52px 24px;
   text-align: center;
+  flex: 1;
+  min-height: 0;
 }
 .ai-empty-sparkle {
   width: 72px;

@@ -53,6 +53,11 @@ export default defineConfig((ctx) => {
           (ctx.dev
             ? 'http://localhost:4000/api/copilotkit'
             : 'https://lg-aircon.onrender.com/api/copilotkit'),
+        KNOWLEDGE_API_URL:
+          process.env.KNOWLEDGE_API_URL ||
+          (ctx.dev
+            ? 'http://localhost:4000/api/knowledge'
+            : 'https://lg-aircon.onrender.com/api/knowledge'),
       },
       // rawDefine: {}
       // ignorePublicFolder: true,

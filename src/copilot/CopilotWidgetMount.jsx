@@ -20,7 +20,7 @@ let bridge = {
   setMessages: () => {},
 };
 
-function ChatInner({ energyStats, deviceStatus, billHistory, weather, pastSessions }) {
+function ChatInner({ energyStats, deviceStatus, billHistory, weather, pastSessions, knowledgeDocs }) {
   const { agent } = useAgent({ agentId: 'default' });
 
   useGenerativeWidgets();
@@ -41,6 +41,14 @@ function ChatInner({ energyStats, deviceStatus, billHistory, weather, pastSessio
       'Reference these naturally when relevant, e.g. "You previously mentioned..." — do not ignore ' +
       'things the user already told you in an earlier session.',
     value: pastSessions,
+  });
+  useCopilotReadable({
+    description:
+      'User-uploaded reference documents (manuals, guides, notes) about this AC. Each item has a ' +
+      'fileName, kind (pdf/docx/image), and extracted text content. Use their content to answer ' +
+      'questions about specific settings, error codes, or maintenance steps when relevant — cite the ' +
+      'source file name when you do. Image files have no extracted text and can only be referenced by name.',
+    value: knowledgeDocs,
   });
 
   useEffect(() => {

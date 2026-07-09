@@ -15,6 +15,7 @@ const props = defineProps({
   billHistory: { type: Array, default: () => [] },
   weather: { type: Object, default: null },
   pastSessions: { type: Array, default: () => [] },
+  knowledgeDocs: { type: Array, default: () => [] },
 });
 
 const mountEl = ref(null);
@@ -28,6 +29,7 @@ const currentProps = () => ({
   billHistory: props.billHistory,
   weather: props.weather,
   pastSessions: props.pastSessions,
+  knowledgeDocs: props.knowledgeDocs,
 });
 
 onMounted(() => {
@@ -35,7 +37,7 @@ onMounted(() => {
 });
 
 watch(
-  () => [props.apiKey, props.model, props.runtimeUrl, props.energyStats, props.deviceStatus, props.billHistory, props.weather, props.pastSessions],
+  () => [props.apiKey, props.model, props.runtimeUrl, props.energyStats, props.deviceStatus, props.billHistory, props.weather, props.pastSessions, props.knowledgeDocs],
   () => update(currentProps())
 );
 
@@ -51,8 +53,20 @@ defineExpose({
 
 <style scoped>
 .copilot-mount-root {
-  min-height: 480px;
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
+}
+
+/* CopilotKit ships .copilotKitChat with its `height: 100%` rule commented
+   out (it assumes the popup/sidebar .copilotKitWindow wrapper sizes it
+   instead). Mounted standalone here, that leaves it unsized, so its
+   flex-grow message list has nothing to grow into and the input bar ends
+   up stranded with a big empty gap below it. Force the fill ourselves. */
+.copilot-mount-root :deep(.copilotKitChat) {
+  height: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 </style>

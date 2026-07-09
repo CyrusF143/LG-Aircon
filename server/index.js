@@ -1,5 +1,8 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import multer from 'multer';
+import { createClient } from '@supabase/supabase-js';
 import { CopilotRuntime, copilotRuntimeNodeExpressEndpoint } from '@copilotkit/runtime';
 // BuiltInAgent is only exported from the /v2 subpath in this version, even
 // though the v1 CopilotRuntime (imported above) accepts it via `agents`.
@@ -11,6 +14,65 @@ app.use(express.json());
 
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok' });
+});
+
+// Knowledge base file storage (manuals, docs, images the AI can reference).
+// Uses the Supabase service-role key, so this must stay server-side only —
+// the browser never sees it, only ever talks to the /api/knowledge/* routes.
+const KNOWLEDGE_BUCKET = 'knowledge-docs';
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SECRET_KEY);
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+
+async function ensureKnowledgeBucket() {
+  const { data: buckets, error } = await supabase.storage.listBuckets();
+  if (error) {
+    console.warn('Could not list Supabase buckets — is SUPABASE_URL/SUPABASE_SECRET_KEY set?', error.message);
+    return;
+  }
+  if (buckets.some((b) => b.name === KNOWLEDGE_BUCKET)) return;
+  const { error: createError } = await supabase.storage.createBucket(KNOWLEDGE_BUCKET, { public: false });
+  if (createError) {
+    console.warn(`Could not create Supabase bucket "${KNOWLEDGE_BUCKET}":`, createError.message);
+  } else {
+    console.log(`Created Supabase bucket "${KNOWLEDGE_BUCKET}"`);
+  }
+}
+
+app.post('/api/knowledge/upload', upload.single('file'), async (req, res) => {
+  const { uid } = req.body;
+  if (!uid) return res.status(400).json({ error: 'Missing uid' });
+  if (!req.file) return res.status(400).json({ error: 'Missing file' });
+
+  const safeName = req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const path = `${uid}/${Date.now()}-${safeName}`;
+
+  const { error } = await supabase.storage
+    .from(KNOWLEDGE_BUCKET)
+    .upload(path, req.file.buffer, { contentType: req.file.mimetype });
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ path });
+});
+
+app.post('/api/knowledge/signed-url', async (req, res) => {
+  const { path } = req.body;
+  if (!path) return res.status(400).json({ error: 'Missing path' });
+
+  const { data, error } = await supabase.storage
+    .from(KNOWLEDGE_BUCKET)
+    .createSignedUrl(path, 3600);
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ url: data.signedUrl });
+});
+
+app.delete('/api/knowledge/file', async (req, res) => {
+  const { path } = req.body;
+  if (!path) return res.status(400).json({ error: 'Missing path' });
+
+  const { error } = await supabase.storage.from(KNOWLEDGE_BUCKET).remove([path]);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ ok: true });
 });
 
 // Mounted with no path prefix (not app.use('/api/copilotkit', ...)) because
@@ -76,6 +138,7 @@ app.use((req, res, next) => {
 });
 
 const port = process.env.PORT || 4000;
-app.listen(port, () => {
+app.listen(port, async () => {
   console.log(`CopilotKit runtime listening on port ${port}`);
+  await ensureKnowledgeBucket();
 });

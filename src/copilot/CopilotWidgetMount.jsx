@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import { flushSync } from 'react-dom';
 import { CopilotKit, useCopilotReadable } from '@copilotkit/react-core';
 import { embedTexts, cosineSimilarity } from './embeddingUtils.js';
 // useAgent isn't exported from the main "@copilotkit/react-core" entry in
@@ -49,9 +50,12 @@ function ChatInner({ apiKey, energyStats, deviceStatus, billHistory, weather, pa
   useCopilotReadable({
     description:
       'Excerpts retrieved from the user\'s uploaded reference documents (manuals, guides, notes) about ' +
-      'this AC, ranked by relevance to their current question. Each item has a fileName and text. Use ' +
-      'them to answer questions about specific settings, error codes, or maintenance steps — cite the ' +
-      'source file name when you do. If empty, no uploaded document was relevant to this question.',
+      'this AC, ranked by relevance to their current question. Each item has a fileName and text. These ' +
+      'are the authoritative source for any question about specific settings, measurements, error codes, ' +
+      'or maintenance steps — when they contain a number, unit, or step relevant to the question, quote ' +
+      'it exactly as written here rather than approximating from general knowledge. Always cite the exact ' +
+      'fileName of the excerpt you actually used — never a different or assumed file name. If empty, none ' +
+      'of the user\'s uploaded documents were relevant; answer from general knowledge without citing a file.',
     value: relevantChunks,
   });
 
@@ -65,12 +69,22 @@ function ChatInner({ apiKey, energyStats, deviceStatus, billHistory, weather, pa
   // renderBarChart/etc. actions in GenerativeWidgets.jsx). Retrieving here
   // means the excerpts are just part of the request's readable context —
   // no tool call, no follow-up turn, no thought_signature risk.
+  // useCopilotReadable registers its value into copilotkit's context map
+  // inside a useEffect (verified by reading its source), not synchronously
+  // during render. A plain setRelevantChunks() call only schedules a
+  // re-render — it does NOT guarantee that effect has actually run by the
+  // time this function returns and CopilotKit immediately calls runAgent()
+  // right after (confirmed empirically: even a setTimeout(0) yield after the
+  // update wasn't enough — the request still went out with the stale empty
+  // value). flushSync forces React to synchronously commit the update AND
+  // flush its passive effects before returning, so the registration is
+  // guaranteed to have happened by the time we continue.
   const handleSubmitMessage = async (text) => {
     const allChunks = (knowledgeDocs || []).flatMap((doc) =>
       (doc.chunks || []).map((chunk) => ({ fileName: doc.fileName, text: chunk.text, embedding: chunk.embedding }))
     );
     if (!allChunks.length) {
-      setRelevantChunks([]);
+      flushSync(() => setRelevantChunks([]));
       return;
     }
     try {
@@ -80,10 +94,10 @@ function ChatInner({ apiKey, energyStats, deviceStatus, billHistory, weather, pa
         .sort((a, b) => b.similarity - a.similarity)
         .slice(0, TOP_K_CHUNKS)
         .map(({ fileName, text: chunkText }) => ({ fileName, text: chunkText }));
-      setRelevantChunks(ranked);
+      flushSync(() => setRelevantChunks(ranked));
     } catch (e) {
       console.error('Knowledge base retrieval failed:', e);
-      setRelevantChunks([]);
+      flushSync(() => setRelevantChunks([]));
     }
   };
 

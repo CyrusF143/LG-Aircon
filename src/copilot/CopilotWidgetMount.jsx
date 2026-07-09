@@ -1,6 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { CopilotKit, useCopilotReadable } from '@copilotkit/react-core';
+import { embedTexts, cosineSimilarity } from './embeddingUtils.js';
 // useAgent isn't exported from the main "@copilotkit/react-core" entry in
 // this version (verified by reading its export list) — only from /v2, even
 // though it's the same underlying implementation shared with the v1 runtime
@@ -20,8 +21,11 @@ let bridge = {
   setMessages: () => {},
 };
 
-function ChatInner({ energyStats, deviceStatus, billHistory, weather, pastSessions, knowledgeDocs }) {
+const TOP_K_CHUNKS = 5;
+
+function ChatInner({ apiKey, energyStats, deviceStatus, billHistory, weather, pastSessions, knowledgeDocs }) {
   const { agent } = useAgent({ agentId: 'default' });
+  const [relevantChunks, setRelevantChunks] = useState([]);
 
   useGenerativeWidgets();
 
@@ -44,12 +48,44 @@ function ChatInner({ energyStats, deviceStatus, billHistory, weather, pastSessio
   });
   useCopilotReadable({
     description:
-      'User-uploaded reference documents (manuals, guides, notes) about this AC. Each item has a ' +
-      'fileName, kind (pdf/docx/image), and extracted text content. Use their content to answer ' +
-      'questions about specific settings, error codes, or maintenance steps when relevant — cite the ' +
-      'source file name when you do. Image files have no extracted text and can only be referenced by name.',
-    value: knowledgeDocs,
+      'Excerpts retrieved from the user\'s uploaded reference documents (manuals, guides, notes) about ' +
+      'this AC, ranked by relevance to their current question. Each item has a fileName and text. Use ' +
+      'them to answer questions about specific settings, error codes, or maintenance steps — cite the ' +
+      'source file name when you do. If empty, no uploaded document was relevant to this question.',
+    value: relevantChunks,
   });
+
+  // Runs before the message is added to the agent and before the model is
+  // called (verified by reading useCopilotChatInternal's sendMessage in
+  // @copilotkit/react-core — it awaits this, then calls agent.addMessage and
+  // runAgent). This is a deliberate substitute for a model-invoked search
+  // tool: a real search tool needs a follow-up turn to use the tool's
+  // result in its answer, and that follow-up is what triggers Gemini's
+  // "missing thought_signature" error (same bug documented on the
+  // renderBarChart/etc. actions in GenerativeWidgets.jsx). Retrieving here
+  // means the excerpts are just part of the request's readable context —
+  // no tool call, no follow-up turn, no thought_signature risk.
+  const handleSubmitMessage = async (text) => {
+    const allChunks = (knowledgeDocs || []).flatMap((doc) =>
+      (doc.chunks || []).map((chunk) => ({ fileName: doc.fileName, text: chunk.text, embedding: chunk.embedding }))
+    );
+    if (!allChunks.length) {
+      setRelevantChunks([]);
+      return;
+    }
+    try {
+      const [queryEmbedding] = await embedTexts([text], apiKey, 'RETRIEVAL_QUERY');
+      const ranked = allChunks
+        .map((chunk) => ({ fileName: chunk.fileName, text: chunk.text, similarity: cosineSimilarity(queryEmbedding, chunk.embedding) }))
+        .sort((a, b) => b.similarity - a.similarity)
+        .slice(0, TOP_K_CHUNKS)
+        .map(({ fileName, text: chunkText }) => ({ fileName, text: chunkText }));
+      setRelevantChunks(ranked);
+    } catch (e) {
+      console.error('Knowledge base retrieval failed:', e);
+      setRelevantChunks([]);
+    }
+  };
 
   useEffect(() => {
     bridge.getMessages = () =>
@@ -75,6 +111,7 @@ function ChatInner({ energyStats, deviceStatus, billHistory, weather, pastSessio
         title: 'Energy Advisor',
         initial: 'Ask me about your AC energy usage, settings, or past bills...',
       }}
+      onSubmitMessage={handleSubmitMessage}
     />
   );
 }

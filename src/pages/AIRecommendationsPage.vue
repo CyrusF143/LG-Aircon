@@ -436,6 +436,7 @@ import CopilotChatMount from 'src/components/CopilotChatMount.vue';
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import mammoth from 'mammoth';
+import { chunkText, embedTexts } from 'src/copilot/embeddingUtils.js';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -515,9 +516,9 @@ const uploadStep = ref('');
 const MAX_EXTRACT_CHARS = 20000;
 
 // Trimmed view fed to the AI as readable context — only what it needs to
-// answer questions, not the Firestore/Storage bookkeeping fields.
+// rank/retrieve relevant chunks, not the Firestore/Storage bookkeeping fields.
 const knowledgeContextForAI = computed(() =>
-  knowledgeDocs.value.map(d => ({ fileName: d.fileName, kind: d.kind, text: d.extractedText || null }))
+  knowledgeDocs.value.map(d => ({ fileName: d.fileName, kind: d.kind, chunks: d.chunks || [] }))
 );
 
 const classifyFile = (file) => {
@@ -590,6 +591,19 @@ const uploadKnowledgeDoc = async (file) => {
       $q.notify({ type: 'warning', message: 'Could not extract text — the file will still be stored', caption: e.message });
     }
 
+    let chunks = [];
+    if (extractedText) {
+      uploadStep.value = 'Embedding content...';
+      try {
+        const texts = chunkText(extractedText);
+        const embeddings = await embedTexts(texts, apiKeyInput.value, 'RETRIEVAL_DOCUMENT');
+        chunks = texts.map((text, index) => ({ index, text, embedding: embeddings[index] }));
+      } catch (e) {
+        console.error('Embedding failed:', e);
+        $q.notify({ type: 'warning', message: 'Could not index content for AI search — the file will still be stored', caption: e.message });
+      }
+    }
+
     uploadStep.value = 'Uploading file...';
     const formData = new FormData();
     formData.append('file', file);
@@ -604,7 +618,7 @@ const uploadKnowledgeDoc = async (file) => {
       mimeType: file.type,
       kind,
       storagePath: path,
-      extractedText,
+      chunks,
       sizeBytes: file.size,
       uploadedAt: new Date().toISOString()
     });

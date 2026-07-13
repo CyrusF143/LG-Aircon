@@ -24,7 +24,7 @@ let bridge = {
 
 const TOP_K_CHUNKS = 5;
 
-function ChatInner({ apiKey, energyStats, deviceStatus, billHistory, weather, pastSessions, knowledgeDocs }) {
+function ChatInner({ apiKey, energyStats, dailyUsage, deviceStatus, billHistory, weather, pastSessions, knowledgeDocs }) {
   const { agent } = useAgent({ agentId: 'default' });
   const [relevantChunks, setRelevantChunks] = useState([]);
 
@@ -33,7 +33,14 @@ function ChatInner({ apiKey, energyStats, deviceStatus, billHistory, weather, pa
   // useCopilotReadable populates the request's "context" array (verified via
   // server-side request logging — CopilotChat's own `instructions` prop does
   // NOT reach the runtime in this CopilotKit version, context stayed empty).
-  useCopilotReadable({ description: 'Current AC energy usage statistics', value: energyStats });
+  useCopilotReadable({ description: 'Current AC energy usage statistics (aggregate summary only — see the per-day breakdown for individual dates)', value: energyStats });
+  useCopilotReadable({
+    description:
+      'Per-day (or per-month, depending on the selected period) energy usage breakdown for the AC, ' +
+      'each entry as { date, kwh }. Use this for questions about a specific day/period or comparisons ' +
+      'between individual days — the aggregate stats only cover totals/average/peak.',
+    value: dailyUsage,
+  });
   useCopilotReadable({ description: 'Current AC device status and settings', value: deviceStatus });
   useCopilotReadable({
     description: 'Saved electricity bill history for this device, loaded from Firestore',

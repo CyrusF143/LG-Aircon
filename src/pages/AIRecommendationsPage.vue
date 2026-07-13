@@ -393,6 +393,7 @@
             :model="selectedModel"
             :runtime-url="runtimeUrl"
             :energy-stats="energyStats"
+            :daily-usage="dailyUsageForAI"
             :device-status="deviceStatus"
             :bill-history="billHistory"
             :weather="currentWeather"
@@ -491,6 +492,19 @@ const energyStats = ref(null);
 const deviceStatus = ref(null);
 const energyData = ref([]);
 const periodType = ref('DAILY');
+
+// Per-day (or per-month) usage breakdown fed to the AI as context — energyStats
+// is only the aggregate summary (total/average/peak), so without this the AI
+// can't answer questions about a specific day or compare individual periods.
+const dailyUsageForAI = computed(() =>
+  energyData.value.map(item => {
+    const d = item.usedDate;
+    const label = periodType.value === 'DAILY'
+      ? `${d.substring(4, 6)}/${d.substring(6, 8)}`
+      : `${d.substring(0, 4)}/${d.substring(4, 6)}`;
+    return { date: label, kwh: (item.energyUsage / 1000).toFixed(2) };
+  })
+);
 
 // Bill history from Firestore
 const billHistory = ref([]);

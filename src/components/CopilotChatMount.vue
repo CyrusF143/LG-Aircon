@@ -11,6 +11,7 @@ const props = defineProps({
   model: { type: String, default: '' },
   runtimeUrl: { type: String, default: '' },
   energyStats: { type: Object, default: null },
+  dailyUsage: { type: Array, default: () => [] },
   deviceStatus: { type: Object, default: null },
   billHistory: { type: Array, default: () => [] },
   weather: { type: Object, default: null },
@@ -25,6 +26,7 @@ const currentProps = () => ({
   apiKey: props.apiKey,
   model: props.model,
   energyStats: props.energyStats,
+  dailyUsage: props.dailyUsage,
   deviceStatus: props.deviceStatus,
   billHistory: props.billHistory,
   weather: props.weather,
@@ -37,7 +39,7 @@ onMounted(() => {
 });
 
 watch(
-  () => [props.apiKey, props.model, props.runtimeUrl, props.energyStats, props.deviceStatus, props.billHistory, props.weather, props.pastSessions, props.knowledgeDocs],
+  () => [props.apiKey, props.model, props.runtimeUrl, props.energyStats, props.dailyUsage, props.deviceStatus, props.billHistory, props.weather, props.pastSessions, props.knowledgeDocs],
   () => update(currentProps())
 );
 

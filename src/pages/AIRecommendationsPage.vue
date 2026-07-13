@@ -8,7 +8,7 @@
           <div class="ai-header-icon">
             <q-icon name="psychology" size="22px" color="white" />
           </div>
-          <div>
+          <div class="ai-header-text">
             <div class="ai-header-title">AI-Powered Insights</div>
             <div class="ai-header-sub">{{ deviceName }} • {{ deviceType }}</div>
           </div>
@@ -1133,15 +1133,26 @@ onUnmounted(async () => {
   justify-content: center;
   flex-shrink: 0;
 }
+.ai-header-text {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
 .ai-header-title {
   font-size: 19px;
   font-weight: 700;
   color: white;
   line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .ai-header-sub {
   font-size: 12px;
   color: rgba(255,255,255,0.7);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Content */
@@ -1373,12 +1384,26 @@ onUnmounted(async () => {
 
 /* Responsive */
 @media (max-width: 599px) {
-  .ai-stat-grid { grid-template-columns: 1fr 1fr; }
-  .ai-stat-chip { border-bottom: 1px solid #f0f4f8; }
-  .ai-stat-chip:nth-child(even) { border-right: none; }
-  .ai-stat-chip:nth-last-child(-n+2) { border-bottom: none; }
-  .ai-stats-top { flex-direction: column; align-items: flex-start; }
-  .ai-header-title { font-size: 16px; }
+  .ai-content { padding: 10px 10px; gap: 10px; }
+
+  .ai-stat-grid { grid-template-columns: repeat(4, 1fr); }
+  .ai-stat-chip { padding: 8px 2px; }
+  .ai-stat-icon { width: 22px; height: 22px; margin-bottom: 3px; }
+  .ai-stat-icon .q-icon { font-size: 12px; }
+  .ai-stat-value { font-size: 11px; margin-bottom: 1px; white-space: nowrap; }
+  .ai-stat-label { font-size: 6.5px; letter-spacing: 0.1px; }
+
+  .ai-stats-top { flex-direction: column; align-items: flex-start; gap: 6px; padding: 8px 10px; }
+  .ai-period-label { font-size: 11px; }
+  .ai-weather-row { gap: 4px; }
+  .ai-weather-loc { font-size: 11px; }
+  .ai-weather-chip { font-size: 10px; padding: 2px 6px; }
+
+  .ai-header { padding: 0 10px; }
+  .ai-header-inner { gap: 6px; padding: 10px 0; }
+  .ai-header-icon { width: 34px; height: 34px; }
+  .ai-header-title { font-size: 15px; }
+  .ai-header-sub { font-size: 11px; }
 }
 
 /* History drawer */

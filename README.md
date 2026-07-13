@@ -211,6 +211,7 @@ The AI Recommendations page is a **CopilotKit** chat UI (React, mounted inside t
 The AI is grounded in several live data sources, fed in as context automatically on every message:
 - **Live device status** — current mode, fan speed, target/room temperature, swing, from the LG ThinQ API
 - **Energy usage stats** — total/average/peak kWh for the selected period, from the LG ThinQ API
+- **Daily usage breakdown** — per-day (or per-month) `{date, kwh}` figures for the selected period, from the LG ThinQ API — lets the AI answer questions about a specific day or compare individual periods, not just aggregate totals
 - **Bill history** — your saved electricity bill records, from Firestore
 - **Weather** — current outdoor temperature/humidity for your configured city, from Open-Meteo
 - **Past chat sessions** — notes and messages from your 5 most recently *saved* conversations (via the History drawer), so the AI can recall things you mentioned in an earlier session
